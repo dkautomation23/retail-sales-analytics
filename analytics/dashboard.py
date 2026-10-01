@@ -65,7 +65,7 @@ def figures() -> list:
 
     pairs = queries.run("06_basket_pairs")
     cross = pairs[~pairs["same_line"].astype(bool)].head(10).copy()
-    cross["pair"] = [f"{findings.product_name(a)} + {findings.product_name(b)}"
+    cross["pair"] = [f"{findings.product_name(a)} +<br>{findings.product_name(b)}"   # two lines: fits a phone
                      for a, b in zip(cross["product_a"], cross["product_b"])]
     cross["lift"] = cross["lift"].astype(float)
     f7 = px.bar(cross.sort_values("lift"), x="lift", y="pair", orientation="h", labels=LABELS,
@@ -93,7 +93,8 @@ def kpis() -> list:
 def build() -> str:
     # Fixed div ids: Plotly picks random ones, which would change the file on every rebuild.
     charts = [(title, fig.to_html(full_html=False, include_plotlyjs=False, default_width="100%",
-                                  default_height="360px", div_id=f"chart-{n}",
+                                  default_height="520px" if title.startswith("Bought together") else "360px",
+                                  div_id=f"chart-{n}",
                                   config={"displayModeBar": False, "responsive": True}))
               for n, (title, fig) in enumerate(figures(), 1)]
     cards = "".join(f'<div class="kpi"><div class="v">{html.escape(v)}</div><div class="k">{html.escape(k)}</div></div>'
