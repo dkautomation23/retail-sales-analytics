@@ -28,7 +28,10 @@ PRIVACY_SCAN = Path(os.environ.get("PRIVACY_SCAN", ROOT.parent / "_tools" / "pri
 
 # Secret-scanner findings reviewed by hand and known to be harmless, as
 # "path:line": "reason". Any finding not listed here fails check 7.
-KNOWN_FALSE_POSITIVES: dict[str, str] = {}
+KNOWN_FALSE_POSITIVES: dict[str, str] = {
+    "dbt/profiles.yml:11": "default password of the throwaway local demo container, "
+                           "the same value as POSTGRES_PASSWORD in docker-compose.yml",
+}
 
 CYRILLIC = re.compile(r"[\u0400-\u04ff]")
 HOME_PATH = re.compile(r"[a-z]:[\\/]users[\\/]", re.IGNORECASE)

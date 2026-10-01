@@ -1,0 +1,62 @@
+version: 2
+
+sources:
+  - name: warehouse
+    description: Star schema loaded by `python -m analytics.etl`.
+    schema: public
+    tables:
+      - name: dim_date
+        columns:
+          - name: date_key
+            data_tests: [unique, not_null]
+      - name: dim_country
+        columns:
+          - name: country_key
+            data_tests: [unique, not_null]
+      - name: dim_customer
+        columns:
+          - name: customer_key
+            data_tests: [unique, not_null]
+      - name: dim_product
+        columns:
+          - name: product_key
+            data_tests: [unique, not_null]
+      - name: fact_sales
+        columns:
+          - name: date_key
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('warehouse', 'dim_date')
+                    field: date_key
+          - name: customer_key
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('warehouse', 'dim_customer')
+                    field: customer_key
+          - name: product_key
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('warehouse', 'dim_product')
+                    field: product_key
+          - name: country_key
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('warehouse', 'dim_country')
+                    field: country_key
+      - name: fact_returns
+        columns:
+          - name: product_key
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('warehouse', 'dim_product')
+                    field: product_key

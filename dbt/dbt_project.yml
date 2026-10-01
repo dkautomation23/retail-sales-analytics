@@ -1,0 +1,19 @@
+# The same warehouse, modelled the way an analytics team would maintain it:
+# sources (the star schema loaded by analytics/etl.py) -> staging views -> marts.
+name: retail
+version: "1.0.0"
+config-version: 2
+profile: retail
+
+model-paths: ["models"]
+test-paths: ["tests"]
+clean-targets: ["target", "logs"]
+
+models:
+  retail:
+    staging:
+      +materialized: view
+      +schema: staging
+    marts:
+      +materialized: table
+      +schema: marts

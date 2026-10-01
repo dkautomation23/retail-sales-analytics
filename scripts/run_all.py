@@ -18,6 +18,7 @@ STEPS = [
     [PY, "scripts/download_data.py"],
     [PY, "-m", "analytics.etl"],
     [PY, "-m", "analytics.quality"],
+    [str(Path(PY).with_name("dbt")), "build", "--profiles-dir", "dbt", "--project-dir", "dbt"],
     [PY, "-m", "pytest", "-q"],
     [PY, "-m", "analytics.findings"],
     [PY, "-m", "analytics.dashboard"],

@@ -7,3 +7,8 @@ __pycache__/
 .pytest_cache/
 !data/raw/.gitkeep
 bi/data/
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+dbt/.user.yml
+logs/

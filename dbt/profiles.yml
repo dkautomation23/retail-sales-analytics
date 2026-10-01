@@ -1,0 +1,14 @@
+# Connection for the local demo database from docker-compose.yml. The password is the
+# throwaway demo one; override any value with the environment variables below.
+retail:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('RETAIL_DB_HOST', 'localhost') }}"
+      port: "{{ env_var('RETAIL_DB_PORT', '5433') | int }}"
+      user: "{{ env_var('RETAIL_DB_USER', 'retail') }}"
+      password: "{{ env_var('RETAIL_DB_PASSWORD', 'retail') }}"
+      dbname: "{{ env_var('RETAIL_DB_NAME', 'retail') }}"
+      schema: dbt
+      threads: 4

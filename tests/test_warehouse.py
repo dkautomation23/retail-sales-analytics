@@ -106,3 +106,14 @@ def test_basket_pairs_compute_lift_on_a_known_example():
     finally:
         with connect() as conn:
             conn.execute("DROP SCHEMA qa_basket CASCADE")
+
+
+def test_dbt_rfm_mart_matches_the_analysis_sql():
+    # Two implementations of one rule set must agree; run `dbt build` in dbt/ first.
+    with connect() as conn:
+        built = conn.execute("SELECT to_regclass('dbt_marts.mart_customer_rfm')").fetchone()[0]
+        if built is None:
+            pytest.fail("dbt marts are missing - run: cd dbt && dbt build --profiles-dir .")
+        mart = dict(conn.execute("SELECT segment, count(*) FROM dbt_marts.mart_customer_rfm GROUP BY 1").fetchall())
+    sql_file = queries.run("03_rfm_segments").set_index("segment")["customers"]
+    assert {k: int(v) for k, v in sql_file.items()} == {k: int(v) for k, v in mart.items()}

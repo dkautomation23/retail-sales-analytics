@@ -45,6 +45,9 @@ jobs:
         run: python -m analytics.etl
       - name: Data-quality checks
         run: python -m analytics.quality
+      - name: dbt models and tests
+        working-directory: dbt
+        run: dbt build --profiles-dir .
       - name: All tests on the loaded warehouse
         run: python -m pytest -q
       - name: Findings

@@ -1,0 +1,27 @@
+version: 2
+
+models:
+  - name: mart_monthly_revenue
+    description: Revenue, cancellations, net revenue, orders, customers and AOV by month.
+    columns:
+      - name: month_start
+        data_tests: [unique, not_null]
+      - name: net_revenue
+        data_tests: [not_null]
+  - name: mart_customer_rfm
+    description: RFM scores and segment for every identified customer.
+    columns:
+      - name: customer_key
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: source('warehouse', 'dim_customer')
+                field: customer_key
+      - name: segment
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Champions', 'Loyal', 'New or promising', 'At risk', 'Lost', 'Needs attention']

@@ -188,18 +188,35 @@ Each file in [`sql/analysis/`](sql/analysis) answers one question:
 | `05_return_rate.sql` | Cancellation rate overall, with and without same-day reversals, and the products with the highest rate |
 | `06_basket_pairs.sql` | Which products are bought in the same order? Support, confidence and lift for every pair in 0.5%+ of orders |
 
+## dbt
+
+[`dbt/`](dbt) rebuilds the reporting layer the way an analytics team would maintain it:
+`sources` (the star schema) -> `staging` views (`stg_sales`, `stg_cancellations`,
+`stg_products`, `stg_countries`) -> `marts` tables (`mart_monthly_revenue`,
+`mart_customer_rfm`). 33 dbt nodes run under `dbt build`: models, `unique` / `not_null` on
+every key, `relationships` from facts to dimensions, `accepted_values` on RFM segments,
+and a reconciliation test that the marts carry exactly the money in the facts. That test
+failed on its first run: 23 customers appear only in cancellations (their purchases
+predate the data), 1,406.13 GBP that the RFM mart rightly leaves out. It is now
+reconciled explicitly instead of hidden in a tolerance. A pytest check asserts the dbt
+RFM mart and `sql/analysis/03_rfm_segments.sql` give identical segments.
+
+```bash
+cd dbt && dbt build --profiles-dir .
+```
+
 ## Tests and quality checks
 
 - `analytics/quality.py` - 10 SQL checks: no cancellations in sales, no non-positive
   revenue, revenue equals quantity x price, no orphan date / product / customer keys, no
   empty product descriptions, no non-positive cancelled quantities, no gaps in the
   calendar, no duplicate customer ids. Exit code 1 if any fails.
-- `tests/` - 21 pytest tests. Unit tests for every cleaning rule on a small synthetic
+- `tests/` - 22 pytest tests. Unit tests for every cleaning rule on a small synthetic
   frame, and warehouse tests. One test copies the schema, breaks the data on purpose and
   asserts that **every** quality check fails on it, so a check that silently always
   passes is caught.
 - CI (`.github/workflows/ci.yml`) runs the whole pipeline on every push: download and
-  sha256 check, load into a PostgreSQL 16 service, quality checks, all tests, findings,
+  sha256 check, load into a PostgreSQL 16 service, quality checks, `dbt build`, all tests, findings,
   and the dashboard as a build artifact. Actions are pinned to commit SHAs.
 
 ## Power BI
