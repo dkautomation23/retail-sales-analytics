@@ -7,8 +7,8 @@ files answer five business questions, and a static dashboard shows the result.
 
 ![Dashboard](docs/dashboard.png)
 
-Dashboard page: [`docs/index.html`](docs/index.html) - static, opens without a server,
-ready for GitHub Pages.
+**Live dashboard: <https://dkautomation23.github.io/retail-sales-analytics/>** - a static
+page built from [`docs/index.html`](docs/index.html), no server behind it.
 
 ## Findings
 
