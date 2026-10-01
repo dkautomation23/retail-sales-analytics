@@ -101,6 +101,22 @@ def check_queries() -> str:
     return f"{len(names)} files ran, all return rows"
 
 
+def check_dbt() -> str:
+    exe = next((c for c in (Path(PY).with_name("dbt.exe"), Path(PY).with_name("dbt")) if c.exists()), None)
+    if exe is None:
+        raise Skipped("dbt is not installed in this environment")
+    out = sh([str(exe), "build", "--profiles-dir", "."], cwd=ROOT / "dbt")
+    total = re.search(r"TOTAL=(\d+)", out.stdout)
+    errors = re.search(r"ERROR=(\d+)", out.stdout)
+    if out.returncode or not total or not errors or errors.group(1) != "0":
+        tail = [line for line in out.stdout.splitlines() if "ERROR" in line or "FAIL" in line][:5]
+        raise Failed(f"dbt build exit {out.returncode}: " + " | ".join(tail))
+    stated = re.search(r"(\d+) dbt nodes", readme())
+    if not stated or stated.group(1) != total.group(1):
+        raise Failed(f"README says {stated.group(1) if stated else 'nothing'} dbt nodes, dbt built {total.group(1)}")
+    return f"{total.group(1)} nodes built and tested = README"
+
+
 def check_dashboard() -> str:
     page = ROOT / "docs" / "index.html"
     if not page.exists():
@@ -213,6 +229,7 @@ CHECKS = [
     ("pytest green, at least 8 tests", check_pytest),
     ("fact_sales loaded, count matches README", check_row_count),
     ("every sql/analysis file runs", check_queries),
+    ("dbt build green", check_dbt),
     ("dashboard built", check_dashboard),
     ("README findings and recommendations match the data", check_findings),
     ("no Cyrillic, home paths or personal emails", check_hygiene),

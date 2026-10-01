@@ -83,7 +83,7 @@ Single steps:
 | `python -m analytics.impact` | the retention-value estimate behind F8, step by step |
 | `python -m analytics.dashboard` | rebuild `docs/index.html` |
 | `python -m analytics.export_bi` | export the star schema to `bi/data/*.csv` |
-| `python check.py` | everything above plus repository hygiene checks |
+| `python check.py` | release gate: tests, dbt, README numbers vs data, dashboard freshness, secret and privacy scans |
 
 ## Data model
 
