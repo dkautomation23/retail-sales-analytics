@@ -33,15 +33,26 @@ SQL = {
 }
 
 
-def next_month_retention() -> tuple[float, str, str]:
-    """Customers back in month +1, over every cohort whose month +1 is complete."""
+def cohort_table() -> tuple[pd.DataFrame, pd.Timestamp]:
     cohorts = queries.run("02_cohort_retention")
     cohorts["cohort"] = pd.to_datetime(cohorts["cohort"])
-    sizes = cohorts[cohorts["months_since_first"] == 0].set_index("cohort")["cohort_customers"]
-    back = cohorts[cohorts["months_since_first"] == 1].set_index("cohort")["active_customers"]
     with connect() as conn:
         partial = pd.Timestamp(conn.execute("SELECT max(month_start) FROM dim_date").fetchone()[0])
-    complete = sizes[sizes.index + pd.DateOffset(months=1) < partial]
+    return cohorts, partial
+
+
+def next_month_retention_cohorts() -> pd.Series:
+    """Size of every cohort whose month +1 is complete (Jan 2010 - Oct 2011)."""
+    cohorts, partial = cohort_table()
+    sizes = cohorts[cohorts["months_since_first"] == 0].set_index("cohort")["cohort_customers"].astype(float)
+    return sizes[sizes.index + pd.DateOffset(months=1) < partial]
+
+
+def next_month_retention() -> tuple[float, str, str]:
+    """Customers back in month +1, over every cohort whose month +1 is complete."""
+    cohorts, _ = cohort_table()
+    complete = next_month_retention_cohorts()
+    back = cohorts[cohorts["months_since_first"] == 1].set_index("cohort")["active_customers"]
     rate = back.reindex(complete.index, fill_value=0).sum() / complete.sum()
     return float(rate), complete.index.min().strftime("%b %Y"), complete.index.max().strftime("%b %Y")
 
@@ -60,6 +71,15 @@ def basket_finding() -> str:
             f"lift {float(top['lift']):.1f}); the strongest pair across collections is "
             f"{product_name(cross['product_a'])} + {product_name(cross['product_b'])}, bought together "
             f"{float(cross['lift']):.1f}x more often than chance ({int(cross['orders_together'])} orders).")
+
+
+def retention_value_finding() -> str:
+    from . import impact
+    i = impact.compute()
+    return (f"F8 Retention value: each +1 pp of month-1 retention is worth about "
+            f"{i.per_point_per_year:,.0f} GBP of net revenue a year (an estimate: {i.new_per_month:,.0f} new "
+            f"customers a month; in the next 12 months a month-1 returner brings {i.returning_value:,.0f} GBP, "
+            f"other new customers {i.other_value:,.0f} GBP).")
 
 
 def compute() -> list:
@@ -88,6 +108,7 @@ def compute() -> list:
         f"F6 Guests: {100 * v['guest_rev'] / v['gross']:.1f}% of revenue has no Customer ID and is "
         f"invisible to every customer-level metric.",
         basket_finding(),
+        retention_value_finding(),
     ]
 
 

@@ -24,6 +24,7 @@ F4 Retention: 21.0% of new customers buy again in the following month (cohorts J
 F5 Cancellations: 3.65% of sold value is cancelled, but 51.2% of that is same-day reversals of a line just keyed in; without them the rate is 1.82%.
 F6 Guests: 13.1% of revenue has no Customer ID and is invisible to every customer-level metric.
 F7 Baskets: customers buy collections - the 75 strongest product pairs are all pieces of one collection (top: Herb Marker Parsley + Herb Marker Chives, lift 147.2); the strongest pair across collections is Boys Vintage Tin Seaside Bucket + Red Metal Beach Spade, bought together 44.7x more often than chance (262 orders).
+F8 Retention value: each +1 pp of month-1 retention is worth about 46,873 GBP of net revenue a year (an estimate: 213 new customers a month; in the next 12 months a month-1 returner brings 2,520 GBP, other new customers 684 GBP).
 ```
 <!-- findings:end -->
 
@@ -34,8 +35,9 @@ What they mean for the business:
   so churn among them is the first thing to monitor.
 - **F3** - stock and staffing have to be in place by August; a flat plan under-delivers
   exactly in the three months that make over a third of the year.
-- **F4** - 79% of new customers do not buy again the following month. The second order
-  is where the funnel leaks most; it is the first place to test an intervention.
+- **F4, F8** - 79% of new customers do not buy again the following month. The second
+  order is where the funnel leaks most, and F8 puts a ceiling on what fixing it is worth;
+  it is the first place to test an intervention.
 - **F5** - half of the "cancellations" are lines reversed on the day they were keyed in,
   including two bulk orders of 74,215 and 80,995 units. That is an order-entry problem,
   not a product-quality one, and it doubles the apparent cancellation rate.
@@ -67,6 +69,7 @@ Single steps:
 | `python -m analytics.queries` | run every file in `sql/analysis/` |
 | `python -m analytics.quality` | 9 data-quality checks, exit code 1 on any failure |
 | `python -m analytics.findings` | the findings above (`--write-readme` refreshes this README) |
+| `python -m analytics.impact` | the retention-value estimate behind F8, step by step |
 | `python -m analytics.dashboard` | rebuild `docs/index.html` |
 | `python -m analytics.export_bi` | export the star schema to `bi/data/*.csv` |
 | `python check.py` | everything above plus repository hygiene checks |
@@ -180,7 +183,7 @@ Each file in [`sql/analysis/`](sql/analysis) answers one question:
   revenue, revenue equals quantity x price, no orphan date / product / customer keys, no
   empty product descriptions, no non-positive cancelled quantities, no gaps in the
   calendar, no duplicate customer ids. Exit code 1 if any fails.
-- `tests/` - 19 pytest tests. Unit tests for every cleaning rule on a small synthetic
+- `tests/` - 21 pytest tests. Unit tests for every cleaning rule on a small synthetic
   frame, and warehouse tests. One test copies the schema, breaks the data on purpose and
   asserts that **every** quality check fails on it, so a check that silently always
   passes is caught.
@@ -243,6 +246,10 @@ Real problems from building this, not hypothetical ones:
   link). "Same-day reversal" is inferred: a cancellation line that matches a sale line
   exactly (customer, product, quantity, amount, day). Rates are cancelled value / sold
   value over the whole period, not per order.
+- F8 is an estimate, not a forecast. Customers who come back in month 1 are partly
+  different customers (bigger buyers), not just the same customers nudged; a campaign
+  that wins back an extra 1% will likely win back people worth less than today's
+  returners. Read F8 as an upper bound on what a second-order campaign can be worth.
 - "One collection" in F7 is inferred from a shared word in the product names (the source
   has no category). It splits the chart; it is not a product hierarchy.
 - RFM quintiles are relative: a Champion is in the top 40% on recency and frequency of
