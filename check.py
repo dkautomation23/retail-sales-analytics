@@ -190,7 +190,18 @@ CHECKS = [
 ]
 
 
+def venv_python() -> Path | None:
+    """The project's .venv interpreter, if there is one and we are not already in it."""
+    for candidate in (ROOT / ".venv" / "Scripts" / "python.exe", ROOT / ".venv" / "bin" / "python"):
+        if candidate.exists() and Path(sys.prefix).resolve() != (ROOT / ".venv").resolve():
+            return candidate
+    return None
+
+
 def main() -> int:
+    venv = venv_python()
+    if venv:  # run under the pinned dependencies, not whatever python started us
+        return subprocess.call([str(venv), __file__, *sys.argv[1:]])
     sys.path.insert(0, str(ROOT))
     failed, skipped = 0, 0
     for number, (name, check) in enumerate(CHECKS, 1):
