@@ -1,4 +1,4 @@
-"""Release gate: every claim in the README is re-checked against the code and the data.
+"""Release gate: the README's numbers and the repository are re-checked against the data.
 
     python check.py
 
@@ -11,6 +11,7 @@ through SECRET_SCANNER / PRIVACY_SCAN. Without them the run ends with
 """
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
@@ -72,15 +73,16 @@ def check_pytest() -> str:
 
 def check_row_count() -> str:
     from analytics.db import scalar
-    rows = int(scalar("SELECT count(*) FROM fact_sales"))
-    if rows <= 0:
-        raise Failed("fact_sales is empty")
-    stated = re.search(r"\| fact_sales \| ([\d,]+) \|", readme())
-    if not stated:
-        raise Failed("README has no fact_sales row count")
-    if int(stated.group(1).replace(",", "")) != rows:
-        raise Failed(f"README says {stated.group(1)}, warehouse has {rows:,}")
-    return f"fact_sales {rows:,} = README"
+    tables = ("fact_sales", "fact_returns", "dim_customer", "dim_product", "dim_date", "dim_country")
+    wrong = []
+    for table in tables:
+        rows = int(scalar(f"SELECT count(*) FROM {table}"))
+        stated = re.search(rf"\| {table} \| ([\d,]+) \|", readme())
+        if rows <= 0 or not stated or int(stated.group(1).replace(",", "")) != rows:
+            wrong.append(f"{table}: README {stated.group(1) if stated else 'missing'}, warehouse {rows:,}")
+    if wrong:
+        raise Failed("; ".join(wrong))
+    return f"{len(tables)} tables, row counts = README"
 
 
 def check_queries() -> str:
@@ -97,10 +99,15 @@ def check_dashboard() -> str:
     if not page.exists():
         raise Failed("docs/index.html missing")
     size = page.stat().st_size
-    charts = page.read_text(encoding="utf-8").count("Plotly.newPlot")
+    text = page.read_text(encoding="utf-8")
+    charts = text.count("Plotly.newPlot")
     if size <= 50 * 1024 or charts < 5:
         raise Failed(f"{size:,} bytes, {charts} charts (need > 50 KB and >= 5)")
-    return f"{size:,} bytes, {charts} charts"
+    from analytics import findings
+    stale = [line[:2] for line in findings.compute() if html.escape(line) not in text]
+    if stale:
+        raise Failed(f"page is stale, findings {stale} differ - run python -m analytics.dashboard")
+    return f"{size:,} bytes, {charts} charts, built from current data"
 
 
 def check_findings() -> str:
@@ -141,7 +148,12 @@ def check_secrets() -> str:
     if not SECRET_SCANNER.exists():
         raise Skipped(f"secret scanner not found at {SECRET_SCANNER.name}")
     out = sh([PY, str(SECRET_SCANNER), ".", "--format", "json"])
-    found = json.loads(out.stdout or "[]")
+    try:
+        found = json.loads(out.stdout)
+    except ValueError:
+        raise Failed(f"scanner exit {out.returncode}, unreadable output: {out.stderr.strip()[:200]}")
+    if out.returncode not in (0, 1) or (out.returncode == 1 and not found):
+        raise Failed(f"scanner exit {out.returncode}: {out.stderr.strip()[:200]}")
     new = []
     for f in found:
         key = f"{Path(f['file']).as_posix().removeprefix('./')}:{f['line']}"

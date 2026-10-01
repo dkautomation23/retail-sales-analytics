@@ -34,6 +34,11 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Unit tests (no database)
         run: python -m pytest -q tests/test_clean.py
+      - name: Cache the dataset (UCI is slow and sometimes down)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: data/raw
+          key: uci-online-retail-ii-${{ hashFiles('scripts/download_data.py', 'analytics/etl.py') }}
       - name: Download and verify the dataset
         run: python scripts/download_data.py
       - name: Load the warehouse

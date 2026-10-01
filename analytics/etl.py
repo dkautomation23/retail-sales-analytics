@@ -41,7 +41,10 @@ def build(raw: pd.DataFrame) -> dict:
     sales, returns = cleaned.sales, cleaned.returns
     both = pd.concat([sales, returns], ignore_index=True)
 
-    dates = pd.to_datetime(both["InvoiceDate"]).dt.normalize().drop_duplicates().sort_values()
+    # A continuous calendar, not just the trading days: BI tools refuse to mark a
+    # date table with gaps, and time intelligence (DATEADD, YoY) needs every day.
+    days = pd.to_datetime(both["InvoiceDate"]).dt.normalize()
+    dates = pd.Series(pd.date_range(days.min(), days.max(), freq="D"))
     dim_date = pd.DataFrame({
         "date_key": dates.dt.strftime("%Y%m%d").astype(int),
         "full_date": dates.dt.date,

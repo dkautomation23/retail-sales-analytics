@@ -26,13 +26,13 @@ each file in `bi/data/`.
 ## 3. Measures
 
 Paste the measures from `measures.md` into a new table `Measures`.
-Check: no filters -> `Net Revenue` = 18,926,266 and `Return Rate %` = 3.65%.
+Check the numbers against the "Expected values" table at the end of `measures.md`.
 
 ## 4. Report page
 
 | Visual | Fields |
 |---|---|
-| 5 cards | Net Revenue, Orders, Avg Order Value, Identified Customers, Return Rate % |
+| 5 cards | Net Revenue, Orders, Avg Order Value, Identified Customers, Cancellation Rate % |
 | Line chart | `dim_date[month_start]`, Gross Revenue |
 | Matrix (retention) | rows: first month (see note), columns: months since, values: customers |
 | Clustered bar | `dim_country[country]` (filter out United Kingdom), Net Revenue, top 10 |

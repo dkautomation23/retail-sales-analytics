@@ -7,7 +7,8 @@ files answer five business questions, and a static dashboard shows the result.
 
 ![Dashboard](docs/dashboard.png)
 
-Live page: `docs/index.html` (static, opens without a server; ready for GitHub Pages).
+Dashboard page: [`docs/index.html`](docs/index.html) - static, opens without a server,
+ready for GitHub Pages.
 
 ## Findings
 
@@ -17,25 +18,26 @@ is typed by hand, and `check.py` fails if this block drifts from the command out
 <!-- findings:start -->
 ```
 F1 Concentration: the United Kingdom is 85.4% of net revenue (16,167,773 of 18,926,266 GBP).
-F2 Champions: 25.1% of identified customers (RFM Champions) bring 69.1% of identified-customer revenue.
+F2 Champions: 25.0% of identified customers (RFM Champions) bring 70.1% of identified-customer net revenue.
 F3 Seasonality: September-November is 36.7% of revenue against 25.0% if sales were flat (Dec 2009 - Nov 2011; the partial Dec 2011 is excluded).
-F4 Retention: 23.0% of new customers buy again in the following month.
-F5 Returns: 3.65% of sold value is returned; the two largest cancelled orders alone are 34.3% of it.
+F4 Retention: 21.0% of new customers buy again in the following month (cohorts Jan 2010 - Oct 2011).
+F5 Cancellations: 3.65% of sold value is cancelled, but 51.2% of that is same-day reversals of a line just keyed in; without them the rate is 1.82%.
 F6 Guests: 13.1% of revenue has no Customer ID and is invisible to every customer-level metric.
 ```
 <!-- findings:end -->
 
 What they mean for the business:
 
-- **F1, F2** - revenue depends on one country and on a quarter of the customer base.
-  Losing a handful of Champions costs more than any marketing channel brings in; they
-  deserve account management, not newsletters.
+- **F1, F2** - revenue depends on one country and on a quarter of the identified
+  customers (1,463 Champions). Each of them is worth far more than an average customer,
+  so churn among them is the first thing to monitor.
 - **F3** - stock and staffing have to be in place by August; a flat plan under-delivers
   exactly in the three months that make over a third of the year.
-- **F4** - 77% of new customers do not buy again the following month. The first repeat
-  order is the cheapest growth lever in the data.
-- **F5** - the return rate looks healthy, but a third of it is two orders. Large orders
-  need a confirmation step, not a general returns policy.
+- **F4** - 79% of new customers do not buy again the following month. The second order
+  is where the funnel leaks most; it is the first place to test an intervention.
+- **F5** - half of the "cancellations" are lines reversed on the day they were keyed in,
+  including two bulk orders of 74,215 and 80,995 units. That is an order-entry problem,
+  not a product-quality one, and it doubles the apparent cancellation rate.
 - **F6** - any "revenue per customer" number from this data is computed on 87% of revenue.
 
 ## Run it
@@ -60,7 +62,7 @@ Single steps:
 | `python -m analytics.etl` | clean + load the warehouse, print the cleaning table |
 | `python -m analytics.queries` | run every file in `sql/analysis/` |
 | `python -m analytics.quality` | 9 data-quality checks, exit code 1 on any failure |
-| `python -m analytics.findings` | the findings above |
+| `python -m analytics.findings` | the findings above (`--write-readme` refreshes this README) |
 | `python -m analytics.dashboard` | rebuild `docs/index.html` |
 | `python -m analytics.export_bi` | export the star schema to `bi/data/*.csv` |
 | `python check.py` | everything above plus repository hygiene checks |
@@ -122,9 +124,11 @@ erDiagram
     }
 ```
 
-Grain of `fact_sales`: one invoice line that is a real product sale. Cancellations live in
-`fact_returns` with the same keys, so revenue never mixes with negative quantities and
-return rates are a simple ratio. DDL: [`sql/schema.sql`](sql/schema.sql).
+Grain of `fact_sales`: one invoice line that is a real product sale. Cancellation invoices
+(`C...` in the source) live in `fact_returns` with the same keys, so revenue never mixes
+with negative quantities and cancellation rates are a simple ratio. `dim_date` is a
+continuous calendar (every day from the first to the last invoice), which BI tools need
+for time intelligence. DDL: [`sql/schema.sql`](sql/schema.sql).
 
 Loaded rows:
 
@@ -134,7 +138,7 @@ Loaded rows:
 | fact_returns | 17,914 |
 | dim_customer | 5,876 |
 | dim_product | 4,892 |
-| dim_date | 604 |
+| dim_date | 739 |
 | dim_country | 43 |
 
 ## Cleaning
@@ -159,19 +163,19 @@ Each file in [`sql/analysis/`](sql/analysis) answers one question:
 
 | File | Question |
 |---|---|
-| `01_monthly_revenue.sql` | Revenue, orders, customers and AOV by month; month-over-month growth |
+| `01_monthly_revenue.sql` | Revenue, cancellations, net revenue, orders, customers and AOV by month; month-over-month growth |
 | `02_cohort_retention.sql` | Of the customers who first bought in month M, what share bought again N months later? |
-| `03_rfm_segments.sql` | RFM scores (`ntile` quintiles) -> six segments with their share of customers and revenue |
-| `04_top_products_countries.sql` | Top products and countries by **net** revenue (sales minus returns) |
-| `05_return_rate.sql` | Return rate overall and the products with the highest rate |
+| `03_rfm_segments.sql` | RFM scores (`ntile` quintiles on net value) -> six segments with their share of customers and net revenue |
+| `04_top_products_countries.sql` | Top products and countries by **net** revenue (sales minus cancellations) |
+| `05_return_rate.sql` | Cancellation rate overall, with and without same-day reversals, and the products with the highest rate |
 
 ## Tests and quality checks
 
-- `analytics/quality.py` - 9 SQL checks: no cancellations in sales, no non-positive
+- `analytics/quality.py` - 10 SQL checks: no cancellations in sales, no non-positive
   revenue, revenue equals quantity x price, no orphan date / product / customer keys, no
-  empty product descriptions, no non-positive return quantities, no duplicate customer
-  ids. Exit code 1 if any fails.
-- `tests/` - 15 pytest tests. Unit tests for every cleaning rule on a small synthetic
+  empty product descriptions, no non-positive cancelled quantities, no gaps in the
+  calendar, no duplicate customer ids. Exit code 1 if any fails.
+- `tests/` - 17 pytest tests. Unit tests for every cleaning rule on a small synthetic
   frame, and warehouse tests. One test copies the schema, breaks the data on purpose and
   asserts that **every** quality check fails on it, so a check that silently always
   passes is caught.
@@ -190,8 +194,8 @@ Real problems from building this, not hypothetical ones:
 
 1. **A cancelled order ranked as the #4 best-selling product.** "PAPER CRAFT, LITTLE
    BIRDIE" showed 168,469.60 GBP of gross revenue - all from order 581483, 80,995 units,
-   cancelled in full the same day by C581484. Fix: rank by net revenue, with returns in their own
-   fact table. A test now asserts this product is not in the top 10.
+   cancelled in full the same day by C581484. Fix: rank by net revenue, with cancellations
+   in their own fact table. A test now asserts this product is not in the top 10.
 2. **Reading the Excel file took about 1.5 minutes per run** (two sheets, 1,067,371 rows).
    Fix: the ETL writes a CSV cache after the first read.
 3. **The monthly chart rendered wider than its card and cut off all of 2011.** Plotly
@@ -200,6 +204,19 @@ Real problems from building this, not hypothetical ones:
 4. **Docker Desktop was not running at the start**, so `docker compose` could not start
    the database. `run_all.py` now uses `--wait` so it fails at the first step with a clear
    message instead of later with a connection error.
+5. **A review of the first version caught three analysis errors**, all fixed before
+   publishing:
+   - Retention was 23.0%, inflated by the first month of data: "new customers" in
+     Dec 2009 were everyone already buying. Excluding that cohort and the partial
+     Dec 2011 gives 21.0%.
+   - RFM scored gross value, so one customer's 168k order, cancelled the same day, made
+     up 43% of the "New or promising" segment. Monetary is now net of cancellations.
+   - `ntile` split customers with equal frequency into different quintiles in an
+     arbitrary order, so a reload could change the Champions share. `customer_key` now
+     breaks ties.
+6. **The date dimension had gaps** (604 trading days out of 739), so Power BI could not
+   mark it as a date table. It is now a continuous calendar, and a quality check fails on
+   any gap.
 
 ## Honest limits
 
@@ -215,9 +232,14 @@ Real problems from building this, not hypothetical ones:
 - The data ends on 9 December 2011 (8 trading days of that month). December 2011 is
   excluded from the monthly chart and the seasonality finding, but included in all-time
   totals.
+- The source does not tell a customer return from an order cancellation; both are
+  `C...` invoices. They are called cancellations here.
 - A cancellation is not linked to the invoice line it cancels (the source has no such
-  link), so return rates are returned value / sold value per product over the whole
-  period, not per order.
+  link). "Same-day reversal" is inferred: a cancellation line that matches a sale line
+  exactly (customer, product, quantity, amount, day). Rates are cancelled value / sold
+  value over the whole period, not per order.
+- RFM quintiles are relative: a Champion is in the top 40% on recency and frequency of
+  this customer base, not above a fixed threshold.
 - The dashboard is a static snapshot; rebuild it with `python -m analytics.dashboard`.
 
 ## Data and license

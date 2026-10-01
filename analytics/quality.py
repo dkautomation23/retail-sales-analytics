@@ -27,6 +27,8 @@ CHECKS = {
         "SELECT count(*) FROM dim_product WHERE coalesce(trim(description), '') = ''",
     "returns with quantity <= 0":
         "SELECT count(*) FROM fact_returns WHERE quantity <= 0",
+    "calendar days missing between the first and last date":
+        "SELECT coalesce(max(full_date) - min(full_date) + 1 - count(*), 0) FROM dim_date",
     "customer ids that appear twice":
         "SELECT count(*) FROM (SELECT customer_id FROM dim_customer WHERE customer_id IS NOT NULL "
         "GROUP BY customer_id HAVING count(*) > 1) d",
