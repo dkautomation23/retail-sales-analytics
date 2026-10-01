@@ -11,6 +11,7 @@ through SECRET_SCANNER / PRIVACY_SCAN. Without them the run ends with
 """
 from __future__ import annotations
 
+import functools
 import html
 import json
 import os
@@ -107,10 +108,16 @@ def check_dashboard() -> str:
     if size <= 50 * 1024 or charts < 5:
         raise Failed(f"{size:,} bytes, {charts} charts (need > 50 KB and >= 5)")
     from analytics import findings
-    stale = [line[:2] for line in findings.compute() if html.escape(line) not in text]
+    stale = [line[:2] for line in findings.findings_from(data_facts()) if html.escape(line) not in text]
     if stale:
         raise Failed(f"page is stale, findings {stale} differ - run python -m analytics.dashboard")
     return f"{size:,} bytes, {charts} charts, built from current data"
+
+
+@functools.lru_cache(maxsize=1)
+def data_facts() -> dict:
+    from analytics import findings
+    return findings.facts()
 
 
 def check_findings() -> str:
@@ -118,11 +125,18 @@ def check_findings() -> str:
     block = re.search(r"<!-- findings:start -->\s*```\n(.*?)\n```\s*<!-- findings:end -->", readme(), re.S)
     if not block:
         raise Failed("README findings block not found")
-    stated, actual = block.group(1).splitlines(), findings.compute()
+    stated, actual = block.group(1).splitlines(), findings.findings_from(data_facts())
     if stated != actual:
         diff = [f"README: {s}\n      data:   {a}" for s, a in zip(stated, actual) if s != a]
         raise Failed(f"{len(stated)} lines in README vs {len(actual)} from data\n      " + "\n      ".join(diff))
-    return f"{len(actual)} findings match the data"
+    recs = re.search(r"<!-- recommendations:start -->\s*(.*?)\s*<!-- recommendations:end -->", readme(), re.S)
+    if not recs:
+        raise Failed("README recommendations block not found")
+    stated_recs, actual_recs = recs.group(1).splitlines(), findings.recommendations_from(data_facts())
+    if stated_recs != actual_recs:
+        wrong = [s[:60] for s, a in zip(stated_recs, actual_recs) if s != a] or ["line count differs"]
+        raise Failed("recommendations drifted from the data: " + "; ".join(wrong))
+    return f"{len(actual)} findings and {len(actual_recs)} recommendations match the data"
 
 
 def check_hygiene() -> str:
@@ -197,7 +211,7 @@ CHECKS = [
     ("fact_sales loaded, count matches README", check_row_count),
     ("every sql/analysis file runs", check_queries),
     ("dashboard built", check_dashboard),
-    ("README findings match the data", check_findings),
+    ("README findings and recommendations match the data", check_findings),
     ("no Cyrillic, home paths or personal emails", check_hygiene),
     ("secret scan", check_secrets),
     ("privacy scan", check_privacy),
