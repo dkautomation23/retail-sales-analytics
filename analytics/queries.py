@@ -7,6 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+from psycopg import sql
 
 from .db import connect
 
@@ -17,9 +18,11 @@ def files() -> list:
     return sorted(ANALYSIS.glob("*.sql"))
 
 
-def run(name: str) -> pd.DataFrame:
+def run(name: str, schema: str = "public") -> pd.DataFrame:
+    """Run one analysis file; `schema` lets tests point it at a small synthetic copy."""
     path = ANALYSIS / (name if name.endswith(".sql") else f"{name}.sql")
     with connect() as conn:
+        conn.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
         cur = conn.execute(path.read_text(encoding="utf-8"))
         columns = [c.name for c in cur.description]
         return pd.DataFrame(cur.fetchall(), columns=columns)

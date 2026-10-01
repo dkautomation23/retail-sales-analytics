@@ -19,7 +19,8 @@ from .db import scalar
 OUT = Path(__file__).resolve().parent.parent / "docs" / "index.html"
 LAYOUT = dict(template="plotly_white", margin=dict(l=40, r=20, t=16, b=40), autosize=True)
 LABELS = {"net_revenue": "net revenue, GBP", "name": "", "product": "", "revenue": "revenue, GBP",
-          "month_start": "", "pct": "%", "segment": "", "measure": "", "return_rate_pct": "cancelled, % of sold"}
+          "month_start": "", "pct": "%", "segment": "", "measure": "", "return_rate_pct": "cancelled, % of sold",
+          "lift": "lift", "pair": ""}
 
 
 def figures() -> list:
@@ -62,9 +63,17 @@ def figures() -> list:
     f6 = px.bar(ret.sort_values("return_rate_pct"), x="return_rate_pct", y="product", orientation="h",
                 labels=LABELS, title="Highest cancellation rates, same-day reversals excluded (%)")
 
+    pairs = queries.run("06_basket_pairs")
+    cross = pairs[~pairs["same_line"].astype(bool)].head(10).copy()
+    cross["pair"] = [f"{findings.product_name(a)} + {findings.product_name(b)}"
+                     for a, b in zip(cross["product_a"], cross["product_b"])]
+    cross["lift"] = cross["lift"].astype(float)
+    f7 = px.bar(cross.sort_values("lift"), x="lift", y="pair", orientation="h", labels=LABELS,
+                title="Bought together across collections: lift (x more often than chance)")
+
     # Titles move out of Plotly into HTML, where they wrap on a phone instead of being cut.
     charts = []
-    for fig in (f1, f2, f3, f4, f5, f6):
+    for fig in (f1, f2, f3, f4, f5, f6, f7):
         title = fig.layout.title.text
         fig.update_layout(**LAYOUT, title=None)
         charts.append((title, fig))
@@ -90,7 +99,9 @@ def build() -> str:
     cards = "".join(f'<div class="kpi"><div class="v">{html.escape(v)}</div><div class="k">{html.escape(k)}</div></div>'
                     for k, v in kpis())
     notes = "".join(f"<li>{html.escape(line)}</li>" for line in findings.compute())
-    grid = "".join(f'<div class="card"><h3>{html.escape(title)}</h3>{chart}</div>' for title, chart in charts)
+    # An odd last chart spans the full row instead of leaving a hole in the grid.
+    grid = "".join(f'<div class="card{" wide" if n == len(charts) and n % 2 else ""}">'
+                   f'<h3>{html.escape(title)}</h3>{chart}</div>' for n, (title, chart) in enumerate(charts, 1))
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -106,6 +117,7 @@ header{{padding:24px 32px 8px}} h1{{margin:0 0 4px;font-size:24px}} .sub{{color:
 .kpi .v{{font-size:22px;font-weight:600}} .kpi .k{{color:#5b6475;font-size:13px}}
 .grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:16px;padding:8px 32px}}
 .card{{background:#fff;border-radius:10px;padding:8px;box-shadow:0 1px 2px #0001;min-width:0;overflow:hidden}}
+.card.wide{{grid-column:1/-1}}
 .card h3{{font-size:15px;font-weight:600;margin:10px 12px 0;color:#2a3142}}
 .findings{{padding:8px 32px 32px}} .findings li{{margin:6px 0}}
 @media (max-width:600px){{.grid{{grid-template-columns:1fr;padding:8px 16px}} .kpis{{grid-template-columns:1fr 1fr}}

@@ -2,8 +2,8 @@
 
 SQL + Python ETL + dashboard on two years of real transactions from a UK online gift
 wholesaler (UCI Online Retail II, 1,067,371 invoice lines, Dec 2009 - Dec 2011).
-Raw Excel goes into a PostgreSQL star schema, every cleaning rule is counted, five SQL
-files answer five business questions, and a static dashboard shows the result.
+Raw Excel goes into a PostgreSQL star schema, every cleaning rule is counted, six SQL
+files answer six business questions, and a static dashboard shows the result.
 
 ![Dashboard](docs/dashboard.png)
 
@@ -23,6 +23,7 @@ F3 Seasonality: September-November is 36.7% of revenue against 25.0% if sales we
 F4 Retention: 21.0% of new customers buy again in the following month (cohorts Jan 2010 - Oct 2011).
 F5 Cancellations: 3.65% of sold value is cancelled, but 51.2% of that is same-day reversals of a line just keyed in; without them the rate is 1.82%.
 F6 Guests: 13.1% of revenue has no Customer ID and is invisible to every customer-level metric.
+F7 Baskets: customers buy collections - the 75 strongest product pairs are all pieces of one collection (top: Herb Marker Parsley + Herb Marker Chives, lift 147.2); the strongest pair across collections is Boys Vintage Tin Seaside Bucket + Red Metal Beach Spade, bought together 44.7x more often than chance (262 orders).
 ```
 <!-- findings:end -->
 
@@ -39,6 +40,9 @@ What they mean for the business:
   including two bulk orders of 74,215 and 80,995 units. That is an order-entry problem,
   not a product-quality one, and it doubles the apparent cancellation rate.
 - **F6** - any "revenue per customer" number from this data is computed on 87% of revenue.
+- **F7** - customers complete collections, so bundles and "complete the set" suggestions
+  follow the data; the cross-collection pairs (bucket and spade, board games) are the
+  candidates for cross-sell placement.
 
 ## Run it
 
@@ -168,6 +172,7 @@ Each file in [`sql/analysis/`](sql/analysis) answers one question:
 | `03_rfm_segments.sql` | RFM scores (`ntile` quintiles on net value) -> six segments with their share of customers and net revenue |
 | `04_top_products_countries.sql` | Top products and countries by **net** revenue (sales minus cancellations) |
 | `05_return_rate.sql` | Cancellation rate overall, with and without same-day reversals, and the products with the highest rate |
+| `06_basket_pairs.sql` | Which products are bought in the same order? Support, confidence and lift for every pair in 0.5%+ of orders |
 
 ## Tests and quality checks
 
@@ -175,7 +180,7 @@ Each file in [`sql/analysis/`](sql/analysis) answers one question:
   revenue, revenue equals quantity x price, no orphan date / product / customer keys, no
   empty product descriptions, no non-positive cancelled quantities, no gaps in the
   calendar, no duplicate customer ids. Exit code 1 if any fails.
-- `tests/` - 17 pytest tests. Unit tests for every cleaning rule on a small synthetic
+- `tests/` - 19 pytest tests. Unit tests for every cleaning rule on a small synthetic
   frame, and warehouse tests. One test copies the schema, breaks the data on purpose and
   asserts that **every** quality check fails on it, so a check that silently always
   passes is caught.
@@ -238,6 +243,8 @@ Real problems from building this, not hypothetical ones:
   link). "Same-day reversal" is inferred: a cancellation line that matches a sale line
   exactly (customer, product, quantity, amount, day). Rates are cancelled value / sold
   value over the whole period, not per order.
+- "One collection" in F7 is inferred from a shared word in the product names (the source
+  has no category). It splits the chart; it is not a product hierarchy.
 - RFM quintiles are relative: a Champion is in the top 40% on recency and frequency of
   this customer base, not above a fixed threshold.
 - The dashboard is a static snapshot; rebuild it with `python -m analytics.dashboard`.

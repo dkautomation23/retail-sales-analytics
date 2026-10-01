@@ -46,6 +46,22 @@ def next_month_retention() -> tuple[float, str, str]:
     return float(rate), complete.index.min().strftime("%b %Y"), complete.index.max().strftime("%b %Y")
 
 
+def product_name(description: str) -> str:
+    return " ".join(description.split()).strip(" ,").title()
+
+
+def basket_finding() -> str:
+    pairs = queries.run("06_basket_pairs").reset_index(drop=True)
+    same = pairs["same_line"].astype(bool)
+    first_cross = int((~same).idxmax())          # 0-based rank of the first pair across collections
+    top, cross = pairs.iloc[0], pairs.iloc[first_cross]
+    return (f"F7 Baskets: customers buy collections - the {first_cross} strongest product pairs are all "
+            f"pieces of one collection (top: {product_name(top['product_a'])} + {product_name(top['product_b'])}, "
+            f"lift {float(top['lift']):.1f}); the strongest pair across collections is "
+            f"{product_name(cross['product_a'])} + {product_name(cross['product_b'])}, bought together "
+            f"{float(cross['lift']):.1f}x more often than chance ({int(cross['orders_together'])} orders).")
+
+
 def compute() -> list:
     with connect() as conn:
         v = {k: float(conn.execute(q).fetchone()[0]) for k, q in SQL.items()}
@@ -71,6 +87,7 @@ def compute() -> list:
         f"without them the rate is {float(real_rate['return_rate_pct']):.2f}%.",
         f"F6 Guests: {100 * v['guest_rev'] / v['gross']:.1f}% of revenue has no Customer ID and is "
         f"invisible to every customer-level metric.",
+        basket_finding(),
     ]
 
 

@@ -80,3 +80,29 @@ def test_retention_starts_after_the_first_month_of_data():
     with connect() as conn:
         first = conn.execute("SELECT min(month_start) FROM dim_date").fetchone()[0]
     assert cohorts["cohort"].min() > first
+
+
+def test_basket_pairs_compute_lift_on_a_known_example():
+    # 4 orders: mint+basil, mint+basil, mint, bucket+spade.
+    # mint+basil: support 2/4 = 50%, confidence 2/min(3, 2) = 100%, lift 2*4/(3*2) = 1.3
+    # bucket+spade: lift 1*4/(1*1) = 4.0, and they share no word, so not the same line.
+    with connect() as conn:
+        conn.execute("DROP SCHEMA IF EXISTS qa_basket CASCADE; CREATE SCHEMA qa_basket")
+        conn.execute("CREATE TABLE qa_basket.dim_product (LIKE public.dim_product)")
+        conn.execute("CREATE TABLE qa_basket.fact_sales (LIKE public.fact_sales)")
+        conn.execute("INSERT INTO qa_basket.dim_product VALUES (1, 'A1', 'HERB MARKER MINT'), "
+                     "(2, 'A2', 'HERB MARKER BASIL'), (3, 'B1', 'SEASIDE BUCKET'), (4, 'C1', 'BEACH SPADE')")
+        lines = [("1", 1), ("1", 2), ("2", 1), ("2", 2), ("3", 1), ("4", 3), ("4", 4)]
+        for invoice, product in lines:
+            conn.execute("INSERT INTO qa_basket.fact_sales VALUES (%s, 20100101, now(), 0, %s, 1, 1, 1, 1)",
+                         (invoice, product))
+        conn.commit()
+    try:
+        pairs = queries.run("06_basket_pairs", schema="qa_basket").set_index("product_a")
+        herbs, beach = pairs.loc["HERB MARKER MINT"], pairs.loc["SEASIDE BUCKET"]
+        assert (float(herbs["support_pct"]), float(herbs["confidence_pct"]), float(herbs["lift"])) == (50.0, 100.0, 1.3)
+        assert bool(herbs["same_line"]) and not bool(beach["same_line"])
+        assert float(beach["lift"]) == 4.0
+    finally:
+        with connect() as conn:
+            conn.execute("DROP SCHEMA qa_basket CASCADE")

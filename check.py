@@ -68,7 +68,10 @@ def check_pytest() -> str:
         raise Failed(f"pytest: {out.stdout.strip().splitlines()[-1]} (warehouse not loaded?)")
     if int(passed.group(1)) < 8:
         raise Failed(f"only {passed.group(1)} tests passed, need at least 8")
-    return f"{passed.group(1)} passed"
+    stated = re.search(r"(\d+) pytest tests", readme())
+    if not stated or stated.group(1) != passed.group(1):
+        raise Failed(f"README says {stated.group(1) if stated else 'nothing'} tests, pytest ran {passed.group(1)}")
+    return f"{passed.group(1)} passed = README"
 
 
 def check_row_count() -> str:
