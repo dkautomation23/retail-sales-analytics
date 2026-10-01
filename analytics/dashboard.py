@@ -82,9 +82,11 @@ def kpis() -> list:
 
 
 def build() -> str:
+    # Fixed div ids: Plotly picks random ones, which would change the file on every rebuild.
     charts = [(title, fig.to_html(full_html=False, include_plotlyjs=False, default_width="100%",
-                                  default_height="360px", config={"displayModeBar": False, "responsive": True}))
-              for title, fig in figures()]
+                                  default_height="360px", div_id=f"chart-{n}",
+                                  config={"displayModeBar": False, "responsive": True}))
+              for n, (title, fig) in enumerate(figures(), 1)]
     cards = "".join(f'<div class="kpi"><div class="v">{html.escape(v)}</div><div class="k">{html.escape(k)}</div></div>'
                     for k, v in kpis())
     notes = "".join(f"<li>{html.escape(line)}</li>" for line in findings.compute())
