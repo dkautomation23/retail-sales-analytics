@@ -245,13 +245,14 @@ the database credentials when asked (user `retail`, password `retail`, the local
 container), then *Refresh*. The server and database names are parameters (`PgServer`,
 `PgDatabase`). The project holds no data and no credentials.
 
+What has been verified: every JSON file validates against Microsoft's published schemas, and
+the TMDL folder loads with Microsoft's own `TmdlSerializer`. The project opens in Power BI Desktop.
+What has not: the data refresh and the rendered layout of the visuals have not been confirmed
+against the numbers in `bi/measures.md` yet.
+
 ## Excel
 
-[`bi/retail-sales-summary.xlsx`](bi/retail-sales-summary.xlsx) (9 KB) is a monthly summary for people who do not open a database. Gross revenue, cancelled value and orders per month are values from the warehouse; net revenue, month on month and year on year change, the yearly table, the best month and a check cell against the warehouse total (`Summary!B3`, must read 0) are Excel formulas. It was recalculated in Excel: the check cell reads 0, and changing one month moves it away from 0. `check.py` compares its monthly values with the warehouse.
-
-What has been verified: every JSON file validates against Microsoft's published schemas, and
-the TMDL folder loads with Microsoft's own `TmdlSerializer`. What has not: the report has
-not been opened and rendered in Power BI Desktop yet, so the visuals' layout is untested.
+[`bi/retail-sales-summary.xlsx`](bi/retail-sales-summary.xlsx) (9 KB) is a monthly summary for people who do not open a database. Gross revenue, cancelled value and orders per month are values from the warehouse; net revenue, month on month and year on year change, the yearly table, the best month and a check cell against the warehouse total (`Summary!B3`, must read 0) are Excel formulas. It was recalculated in Excel: the check cell reads 0, and changing one month moves it away from 0. `check.py` rebuilds the workbook from the warehouse and compares every cell. The file stores formulas without cached values: they compute when Excel (or LibreOffice) opens it, while a viewer that does not recalculate shows empty cells. 2009 holds one month (December).
 
 ## What broke
 

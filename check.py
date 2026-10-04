@@ -266,30 +266,44 @@ def check_powerbi_project() -> str:
 
 
 def check_excel_workbook() -> str:
-    """The Excel workbook is a snapshot: its raw columns must equal the warehouse, its derived ones stay formulas."""
+    """The workbook must equal what export_excel would write from the warehouse today, cell by cell."""
+    from datetime import date, datetime
+
     from openpyxl import load_workbook
 
     from analytics.db import connect
-    from analytics.export_excel import MONTHLY, WAREHOUSE_NET
+    from analytics.export_excel import MONTHLY, WAREHOUSE_NET, build
     path = ROOT / "bi" / "retail-sales-summary.xlsx"
     if not path.exists():
         raise Failed("bi/retail-sales-summary.xlsx is missing (python -m analytics.export_excel)")
-    wb = load_workbook(path)
-    if wb.sheetnames != ["Monthly", "Summary"]:
-        raise Failed(f"sheets are {wb.sheetnames}, expected Monthly and Summary")
-    ws, sm = wb["Monthly"], wb["Summary"]
-    if sm["B3"].value != "=ROUND(B1-B2,2)" or not str(ws["E2"].value).startswith("="):
-        raise Failed("the check cell or the net revenue column is not a formula")
     with connect() as conn:
         rows = conn.execute(MONTHLY).fetchall()
         net = float(conn.execute(WAREHOUSE_NET).fetchone()[0])
-    book = [(r[0].date() if hasattr(r[0], "date") else r[0], r[1], r[2], r[3])
-            for r in ws.iter_rows(min_row=2, max_col=4, values_only=True)]
-    if [(m, round(float(g), 2), round(float(c), 2), int(o)) for m, g, c, o in rows] !=             [(m, round(g, 2), round(c, 2), int(o)) for m, g, c, o in book]:
-        raise Failed("the workbook's monthly values differ from the warehouse; rebuild it")
-    if abs(sm["B2"].value - net) > 0.005:
-        raise Failed(f"Summary!B2 is {sm['B2'].value}, the warehouse says {net}")
-    return f"{len(rows)} months equal the warehouse, net revenue {net:,.2f}, derived columns are formulas"
+        partial = conn.execute("SELECT max(month_start) FROM dim_date").fetchone()[0]
+    expected, actual = build(rows, net, partial), load_workbook(path)
+    if actual.sheetnames != expected.sheetnames:
+        raise Failed(f"sheets are {actual.sheetnames}, expected {expected.sheetnames}")
+
+    def plain(value):
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, float):
+            return round(value, 2)
+        return "" if value is None else value
+
+    differing = []
+    for name in expected.sheetnames:
+        want, got = expected[name], actual[name]
+        if want.dimensions != got.dimensions:
+            differing.append(f"{name} size {got.dimensions} vs {want.dimensions}")
+            continue
+        for want_row, got_row in zip(want.iter_rows(), got.iter_rows()):
+            differing += [f"{name}!{w.coordinate}" for w, g in zip(want_row, got_row)
+                          if plain(w.value) != plain(g.value)]
+    if differing:
+        raise Failed("the workbook differs from a fresh build: " + ", ".join(differing[:5])
+                     + "; rebuild it with python -m analytics.export_excel")
+    return f"{len(rows)} months, every cell of both sheets equals a fresh build, net revenue {net:,.2f}"
 
 
 def check_sizes() -> str:
