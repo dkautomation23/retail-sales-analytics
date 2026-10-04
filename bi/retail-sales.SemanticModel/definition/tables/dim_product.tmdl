@@ -1,0 +1,33 @@
+table dim_product
+	lineageTag: 8b8616d0-6bca-558c-896a-249570139623
+
+	column product_key
+		dataType: int64
+		isKey
+		isHidden
+		lineageTag: 1dd20d3f-c400-58f1-b954-a483f74f4211
+		summarizeBy: none
+		sourceColumn: product_key
+
+	column stock_code
+		dataType: string
+		lineageTag: 7f4af800-7c01-5cf1-a603-41375eeb114a
+		summarizeBy: none
+		sourceColumn: stock_code
+
+	column description
+		dataType: string
+		lineageTag: d100e167-7980-54ff-a3fe-82d84af70797
+		summarizeBy: none
+		sourceColumn: description
+
+	partition dim_product = m
+		mode: import
+		source =
+				let
+					Source = PostgreSQL.Database(PgServer, PgDatabase),
+					Table = Source{[Schema="public", Item="dim_product"]}[Data]
+				in
+					Table
+
+	annotation PBI_ResultType = Table

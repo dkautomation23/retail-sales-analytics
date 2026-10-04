@@ -3,6 +3,12 @@
 The warehouse is already modelled as a star, so Power BI only needs the tables,
 the relationships and the measures in `measures.md`.
 
+**Shortcut:** `retail-sales.pbip` in this folder already has the tables, relationships, date
+table, all measures and a one-page report. Start the database, open the file in Power BI
+Desktop, enter the database credentials (user `retail`, password `retail`), press *Refresh*,
+then check the numbers against the expected values in `measures.md`. The steps below are the
+same model built by hand.
+
 ## 1. Get the data
 
 Option A - straight from PostgreSQL (database running via `docker compose up -d db`):

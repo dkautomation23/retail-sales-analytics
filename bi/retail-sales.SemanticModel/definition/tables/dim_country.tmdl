@@ -1,0 +1,27 @@
+table dim_country
+	lineageTag: da3f238f-3151-52a0-95cb-56ac0f5cf252
+
+	column country_key
+		dataType: int64
+		isKey
+		isHidden
+		lineageTag: fe657105-ad7d-50ae-adfd-72b39c0f1497
+		summarizeBy: none
+		sourceColumn: country_key
+
+	column country
+		dataType: string
+		lineageTag: 2cad3bc9-2ff9-5ee0-aad3-51958646271c
+		summarizeBy: none
+		sourceColumn: country
+
+	partition dim_country = m
+		mode: import
+		source =
+				let
+					Source = PostgreSQL.Database(PgServer, PgDatabase),
+					Table = Source{[Schema="public", Item="dim_country"]}[Data]
+				in
+					Table
+
+	annotation PBI_ResultType = Table

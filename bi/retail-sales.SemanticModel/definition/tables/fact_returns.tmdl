@@ -1,0 +1,59 @@
+table fact_returns
+	lineageTag: bab975b0-1705-5529-95e4-9817bdc26d69
+
+	column invoice
+		dataType: string
+		lineageTag: f5727c55-b4b9-5f62-b1b8-7563c48d8b9c
+		summarizeBy: none
+		sourceColumn: invoice
+
+	column date_key
+		dataType: int64
+		isHidden
+		lineageTag: d02f5d30-5454-504e-8bd5-99774ba76366
+		summarizeBy: none
+		sourceColumn: date_key
+
+	column customer_key
+		dataType: int64
+		isHidden
+		lineageTag: 147338a6-2935-5814-a838-b4a2c3d88b76
+		summarizeBy: none
+		sourceColumn: customer_key
+
+	column product_key
+		dataType: int64
+		isHidden
+		lineageTag: 0ca48775-3949-5ec6-8280-de3383a148a8
+		summarizeBy: none
+		sourceColumn: product_key
+
+	column country_key
+		dataType: int64
+		isHidden
+		lineageTag: 30fefc4d-adbd-5935-9f2a-0d89190dea7c
+		summarizeBy: none
+		sourceColumn: country_key
+
+	column quantity
+		dataType: int64
+		lineageTag: 04bc5209-becd-5f8c-8ef9-5985750fb923
+		summarizeBy: none
+		sourceColumn: quantity
+
+	column amount
+		dataType: decimal
+		lineageTag: bd2dd875-5915-5d3b-81d2-a265ea24c64d
+		summarizeBy: none
+		sourceColumn: amount
+
+	partition fact_returns = m
+		mode: import
+		source =
+				let
+					Source = PostgreSQL.Database(PgServer, PgDatabase),
+					Table = Source{[Schema="public", Item="fact_returns"]}[Data]
+				in
+					Table
+
+	annotation PBI_ResultType = Table

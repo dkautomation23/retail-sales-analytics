@@ -12,3 +12,6 @@ dbt/logs/
 dbt/dbt_packages/
 dbt/.user.yml
 logs/
+# Power BI Desktop: per-user settings and the cached data copy
+**/.pbi/localSettings.json
+**/.pbi/cache.abf

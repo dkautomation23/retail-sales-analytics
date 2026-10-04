@@ -213,6 +213,58 @@ def check_privacy() -> str:
     return "critical 0, important 0"
 
 
+def check_powerbi_project() -> str:
+    """The Power BI project is text: compare it with the warehouse and with measures.md."""
+    from analytics.db import connect
+    bi = ROOT / "bi"
+    model = bi / "retail-sales.SemanticModel" / "definition"
+    if not (bi / "retail-sales.pbip").exists() or not model.exists():
+        raise Failed("bi/retail-sales.pbip or its SemanticModel/definition folder is missing")
+    for path in sorted(bi.glob("retail-sales.*/**/*.json")) + [bi / "retail-sales.pbip"]:
+        if "$schema" not in json.loads(path.read_text(encoding="utf-8")):
+            raise Failed(f"{path.relative_to(ROOT)} has no $schema")
+    in_model: dict[str, set] = {}
+    for tmdl in sorted((model / "tables").glob("*.tmdl")):
+        in_model[tmdl.stem] = set(re.findall(r"^\tcolumn (\S+)$", tmdl.read_text(encoding="utf-8"), re.M))
+    with connect() as conn:
+        wrong = []
+        for table, columns in in_model.items():
+            rows = conn.execute("SELECT column_name FROM information_schema.columns "
+                                "WHERE table_schema = 'public' AND table_name = %s", (table,)).fetchall()
+            if columns != {r[0] for r in rows}:
+                wrong.append(f"{table}: model {sorted(columns)} vs warehouse {sorted(r[0] for r in rows)}")
+    if wrong:
+        raise Failed("; ".join(wrong))
+    relationships = re.findall(r"fromColumn: (\w+)\.(\w+)\n\ttoColumn: (\w+)\.(\w+)",
+                               (model / "relationships.tmdl").read_text(encoding="utf-8"))
+    for ft, fc, tt, tc in relationships:
+        if fc not in in_model.get(ft, ()) or tc not in in_model.get(tt, ()):
+            raise Failed(f"relationship {ft}.{fc} -> {tt}.{tc} names a column the model does not have")
+
+    def squash(text: str) -> str:
+        return re.sub(r"\s+", " ", text).strip()
+
+    docs = (bi / "measures.md").read_text(encoding="utf-8")
+    dax = re.search(r"```DAX\n(.*?)```", docs, re.S).group(1)
+    documented = {}
+    for block in re.split(r"\n\s*\n", dax.strip()):
+        body = "\n".join(l for l in block.splitlines() if not l.lstrip().startswith("--"))
+        name, _, expression = body.partition("=")
+        documented[name.strip()] = squash(expression)
+    fact = (model / "tables" / "fact_sales.tmdl").read_text(encoding="utf-8")
+    built = {}
+    for found in re.finditer(r"^\tmeasure (?:'([^']+)'|(\S+)) =(.*?)^\t\tformatString:", fact, re.S | re.M):
+        built[found.group(1) or found.group(2)] = squash(found.group(3))
+    if built != documented:
+        diff = sorted(set(built) ^ set(documented)) or [k for k in built if built[k] != documented.get(k)]
+        raise Failed(f"measures differ between measures.md and the Power BI project: {diff}")
+    stated = re.search(r"(\d+) DAX measures", readme())
+    if not stated or int(stated.group(1)) != len(built):
+        raise Failed(f"README says {stated.group(1) if stated else 'nothing'} DAX measures, the project has {len(built)}")
+    return (f"{len(in_model)} tables = warehouse columns, {len(relationships)} relationships valid, "
+            f"{len(built)} measures = measures.md = README")
+
+
 def check_sizes() -> str:
     big = [f"{p.relative_to(ROOT).as_posix()} {p.stat().st_size:,}" for p in tracked_files()
            if p.stat().st_size > MAX_TRACKED_BYTES]
@@ -236,6 +288,7 @@ CHECKS = [
     ("secret scan", check_secrets),
     ("privacy scan", check_privacy),
     ("no large files", check_sizes),
+    ("Power BI project matches the warehouse and measures.md", check_powerbi_project),
 ]
 
 

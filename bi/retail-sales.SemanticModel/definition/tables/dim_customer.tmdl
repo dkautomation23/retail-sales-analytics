@@ -1,0 +1,34 @@
+table dim_customer
+	lineageTag: 2b34ccac-6a17-5424-9389-fe087a403de4
+
+	column customer_key
+		dataType: int64
+		isKey
+		isHidden
+		lineageTag: fea13090-062c-52a9-a218-44d3c2e1d77b
+		summarizeBy: none
+		sourceColumn: customer_key
+
+	column customer_id
+		dataType: int64
+		lineageTag: 12fb2496-4a39-5fae-a6ea-757858763d45
+		summarizeBy: none
+		sourceColumn: customer_id
+
+	column home_country_key
+		dataType: int64
+		isHidden
+		lineageTag: 0a5c7228-c8d3-5fff-9fd5-b2f17b5247ee
+		summarizeBy: none
+		sourceColumn: home_country_key
+
+	partition dim_customer = m
+		mode: import
+		source =
+				let
+					Source = PostgreSQL.Database(PgServer, PgDatabase),
+					Table = Source{[Schema="public", Item="dim_customer"]}[Data]
+				in
+					Table
+
+	annotation PBI_ResultType = Table

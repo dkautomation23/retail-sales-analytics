@@ -1,0 +1,62 @@
+table dim_date
+	lineageTag: b1631c12-74c0-5ab6-bd51-3ce32526fcda
+	dataCategory: Time
+
+	column date_key
+		dataType: int64
+		isHidden
+		lineageTag: e184f6c6-bc75-5bc4-9cf8-f04a78a24d34
+		summarizeBy: none
+		sourceColumn: date_key
+
+	column full_date
+		dataType: dateTime
+		formatString: dd/MM/yyyy
+		isKey
+		lineageTag: 570a5c65-86d1-58dc-9913-361355b0e56d
+		summarizeBy: none
+		sourceColumn: full_date
+
+	column year
+		dataType: int64
+		lineageTag: 9d55a092-64c1-50c1-8249-1be44e1260ec
+		summarizeBy: none
+		sourceColumn: year
+
+	column quarter
+		dataType: int64
+		lineageTag: 8994e859-8377-5363-9c2c-d7baf42a7ec0
+		summarizeBy: none
+		sourceColumn: quarter
+
+	column month
+		dataType: int64
+		isHidden
+		lineageTag: af5c7a9a-b7e5-5720-9ecd-b4f3ef97a8af
+		summarizeBy: none
+		sourceColumn: month
+
+	column month_start
+		dataType: dateTime
+		formatString: dd/MM/yyyy
+		lineageTag: bba7dfec-7eaf-5229-9731-b6624368fc96
+		summarizeBy: none
+		sourceColumn: month_start
+
+	column day_of_week
+		dataType: int64
+		isHidden
+		lineageTag: d4ac8423-cf48-54e5-828b-52ff72f4c71a
+		summarizeBy: none
+		sourceColumn: day_of_week
+
+	partition dim_date = m
+		mode: import
+		source =
+				let
+					Source = PostgreSQL.Database(PgServer, PgDatabase),
+					Table = Source{[Schema="public", Item="dim_date"]}[Data]
+				in
+					Table
+
+	annotation PBI_ResultType = Table

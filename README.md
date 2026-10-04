@@ -221,17 +221,28 @@ cd dbt && dbt build --profiles-dir .
 
 ## Power BI
 
-The same star schema is ready to load into Power BI Desktop. What is in [`bi/`](bi) today:
+The star schema is also modelled for Power BI Desktop, as a **Power BI Project**: plain text
+files that diff in git, not a binary `.pbix`.
 
-- [`POWERBI.md`](bi/POWERBI.md) - step by step, about 30-40 minutes: import the six tables
-  from PostgreSQL (or the CSV export), the relationships, the date table, the report page.
-- [`measures.md`](bi/measures.md) - ten DAX measures (net revenue, cancellation rate,
-  retention, MoM and YoY) and a table of expected values computed with SQL on the same
-  warehouse, so a missing or reversed relationship shows up as a wrong number.
-- `python -m analytics.export_bi` writes the tables to `bi/data/*.csv` (about 61 MB, not
-  committed) for a Power BI install without access to the database.
+- [`bi/retail-sales.pbip`](bi/retail-sales.pbip) opens the project. The semantic model
+  (`retail-sales.SemanticModel`, TMDL) has the six warehouse tables, 8 many-to-one
+  relationships, `dim_date` marked as the date table and 11 DAX measures. The report
+  (`retail-sales.Report`, PBIR) has one page: five KPI cards, monthly revenue, net revenue by
+  country and by product, year and country slicers.
+- [`bi/measures.md`](bi/measures.md) is the source of the measures, with a table of expected
+  values computed in SQL. `check.py` fails if the measures in the project differ from it, or
+  if a table in the model has different columns from the warehouse.
+- [`bi/POWERBI.md`](bi/POWERBI.md) is the manual route (about 30-40 minutes) if you prefer to
+  build the model by hand, from PostgreSQL or from `python -m analytics.export_bi` CSV files.
 
-The `.pbix` report itself is not in the repository yet.
+To open: start the database (`docker compose up -d db`), open `bi/retail-sales.pbip`, enter
+the database credentials when asked (user `retail`, password `retail`, the local demo
+container), then *Refresh*. The server and database names are parameters (`PgServer`,
+`PgDatabase`). The project holds no data and no credentials.
+
+What has been verified: every JSON file validates against Microsoft's published schemas, and
+the TMDL folder loads with Microsoft's own `TmdlSerializer`. What has not: the report has
+not been opened and rendered in Power BI Desktop yet, so the visuals' layout is untested.
 
 ## What broke
 

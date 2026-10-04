@@ -1,0 +1,137 @@
+table fact_sales
+	lineageTag: e983e250-51c6-54fa-b50b-d20e362d010b
+
+	column invoice
+		dataType: string
+		lineageTag: 78870433-e869-51e6-8237-da986f135b6f
+		summarizeBy: none
+		sourceColumn: invoice
+
+	column date_key
+		dataType: int64
+		isHidden
+		lineageTag: 86695c6e-a4fe-5d16-b0ef-c9488406accb
+		summarizeBy: none
+		sourceColumn: date_key
+
+	column invoice_ts
+		dataType: dateTime
+		formatString: dd/MM/yyyy HH:mm:ss
+		lineageTag: 79ec35c3-4985-5188-906f-4c4007d9ed46
+		summarizeBy: none
+		sourceColumn: invoice_ts
+
+	column customer_key
+		dataType: int64
+		isHidden
+		lineageTag: 50872e27-0385-520c-a95e-3300dda3f9b0
+		summarizeBy: none
+		sourceColumn: customer_key
+
+	column product_key
+		dataType: int64
+		isHidden
+		lineageTag: 2b738511-4e0f-530d-8469-7599ebe752b1
+		summarizeBy: none
+		sourceColumn: product_key
+
+	column country_key
+		dataType: int64
+		isHidden
+		lineageTag: a216ff88-03db-5cc5-ac23-8855bcfe8a6f
+		summarizeBy: none
+		sourceColumn: country_key
+
+	column quantity
+		dataType: int64
+		lineageTag: 779b1112-40a0-5f02-8871-b8160347e607
+		summarizeBy: none
+		sourceColumn: quantity
+
+	column unit_price
+		dataType: decimal
+		lineageTag: 9c0ee0de-c57c-5067-9365-e30e203ad7bc
+		summarizeBy: none
+		sourceColumn: unit_price
+
+	column revenue
+		dataType: decimal
+		lineageTag: 90551a83-874a-58a3-863d-e31804d98621
+		summarizeBy: none
+		sourceColumn: revenue
+
+	measure 'Gross Revenue' = SUM ( fact_sales[revenue] )
+		formatString: #,##0
+		lineageTag: 3503099a-c3ce-5cf6-aeef-d7556872daf0
+
+	measure Cancelled = SUM ( fact_returns[amount] )
+		formatString: #,##0
+		lineageTag: 16ec054a-0303-5ebd-ae29-348f16b6cd39
+
+	measure 'Net Revenue' = [Gross Revenue] - [Cancelled]
+		formatString: #,##0
+		lineageTag: 16673038-c9a2-5439-a9a4-c9d6b3e7970b
+
+	measure Orders = DISTINCTCOUNT ( fact_sales[invoice] )
+		formatString: #,##0
+		lineageTag: 8e9d7d4f-3d4f-558f-be97-eb49f2b39be0
+
+	measure 'Avg Order Value' = DIVIDE ( [Gross Revenue], [Orders] )
+		formatString: #,##0.00
+		lineageTag: cfdd7773-c0d7-57ba-a521-15782d97d734
+
+	/// The "return rate" of the brief: cancelled value as a share of sold value.
+	measure 'Cancellation Rate %' = DIVIDE ( [Cancelled], [Gross Revenue] )
+		formatString: 0.00%
+		lineageTag: bfb9fe7b-192b-511d-80f0-0fca7e1782e7
+
+	measure 'Identified Customers' = CALCULATE ( DISTINCTCOUNT ( fact_sales[customer_key] ), fact_sales[customer_key] <> 0 )
+		formatString: #,##0
+		lineageTag: fa7d9e22-ade1-54ed-8a5b-30718a4f94dd
+
+	/// Retention: identified customers in the selected month who also bought the month before.
+	measure 'Retention vs Prev Month %' =
+			VAR Retained =
+				COUNTROWS (
+					FILTER (
+						VALUES ( fact_sales[customer_key] ),
+						fact_sales[customer_key] <> 0
+							&& CALCULATE (
+								COUNTROWS ( fact_sales ),
+								REMOVEFILTERS ( dim_date ),
+								DATEADD ( dim_date[full_date], -1, MONTH )
+							) > 0
+					)
+				)
+			RETURN DIVIDE ( Retained, [Identified Customers] )
+		formatString: 0.0%
+		lineageTag: b43f43f8-e51c-50e3-971c-c026c93f232f
+
+	measure 'Guest Revenue Share %' = DIVIDE ( CALCULATE ( [Gross Revenue], fact_sales[customer_key] = 0 ), [Gross Revenue] )
+		formatString: 0.0%
+		lineageTag: 31225dbd-f0eb-5bbb-a6ac-074861124c1c
+
+	measure 'Revenue MoM %' =
+			VAR Prev =
+				CALCULATE ( [Gross Revenue], REMOVEFILTERS ( dim_date ), DATEADD ( dim_date[full_date], -1, MONTH ) )
+			RETURN DIVIDE ( [Gross Revenue] - Prev, Prev )
+		formatString: 0.0%
+		lineageTag: 3a83e628-be32-5e98-b947-9d29c6b9c5ad
+
+	measure 'Revenue YoY %' =
+			VAR Prev =
+				CALCULATE ( [Gross Revenue], REMOVEFILTERS ( dim_date ), SAMEPERIODLASTYEAR ( dim_date[full_date] ) )
+			RETURN DIVIDE ( [Gross Revenue] - Prev, Prev )
+		formatString: 0.0%
+		lineageTag: 45030efe-09cc-5c62-a110-2522a873d0b8
+
+	partition fact_sales = m
+		mode: import
+		source =
+				let
+					Source = PostgreSQL.Database(PgServer, PgDatabase),
+					Table = Source{[Schema="public", Item="fact_sales"]}[Data]
+				in
+					Table
+
+	annotation PBI_ResultType = Table
