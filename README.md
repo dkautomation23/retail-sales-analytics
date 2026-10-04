@@ -221,8 +221,17 @@ cd dbt && dbt build --profiles-dir .
 
 ## Power BI
 
-[`bi/`](bi) has DAX measures (`measures.md`) and a step-by-step guide (`POWERBI.md`) to
-build the same report in Power BI Desktop from the warehouse or from the CSV export.
+The same star schema is ready to load into Power BI Desktop. What is in [`bi/`](bi) today:
+
+- [`POWERBI.md`](bi/POWERBI.md) - step by step, about 30-40 minutes: import the six tables
+  from PostgreSQL (or the CSV export), the relationships, the date table, the report page.
+- [`measures.md`](bi/measures.md) - ten DAX measures (net revenue, cancellation rate,
+  retention, MoM and YoY) and a table of expected values computed with SQL on the same
+  warehouse, so a missing or reversed relationship shows up as a wrong number.
+- `python -m analytics.export_bi` writes the tables to `bi/data/*.csv` (about 61 MB, not
+  committed) for a Power BI install without access to the database.
+
+The `.pbix` report itself is not in the repository yet.
 
 ## What broke
 
