@@ -265,6 +265,33 @@ def check_powerbi_project() -> str:
             f"{len(built)} measures = measures.md = README")
 
 
+def check_excel_workbook() -> str:
+    """The Excel workbook is a snapshot: its raw columns must equal the warehouse, its derived ones stay formulas."""
+    from openpyxl import load_workbook
+
+    from analytics.db import connect
+    from analytics.export_excel import MONTHLY, WAREHOUSE_NET
+    path = ROOT / "bi" / "retail-sales-summary.xlsx"
+    if not path.exists():
+        raise Failed("bi/retail-sales-summary.xlsx is missing (python -m analytics.export_excel)")
+    wb = load_workbook(path)
+    if wb.sheetnames != ["Monthly", "Summary"]:
+        raise Failed(f"sheets are {wb.sheetnames}, expected Monthly and Summary")
+    ws, sm = wb["Monthly"], wb["Summary"]
+    if sm["B3"].value != "=ROUND(B1-B2,2)" or not str(ws["E2"].value).startswith("="):
+        raise Failed("the check cell or the net revenue column is not a formula")
+    with connect() as conn:
+        rows = conn.execute(MONTHLY).fetchall()
+        net = float(conn.execute(WAREHOUSE_NET).fetchone()[0])
+    book = [(r[0].date() if hasattr(r[0], "date") else r[0], r[1], r[2], r[3])
+            for r in ws.iter_rows(min_row=2, max_col=4, values_only=True)]
+    if [(m, round(float(g), 2), round(float(c), 2), int(o)) for m, g, c, o in rows] !=             [(m, round(g, 2), round(c, 2), int(o)) for m, g, c, o in book]:
+        raise Failed("the workbook's monthly values differ from the warehouse; rebuild it")
+    if abs(sm["B2"].value - net) > 0.005:
+        raise Failed(f"Summary!B2 is {sm['B2'].value}, the warehouse says {net}")
+    return f"{len(rows)} months equal the warehouse, net revenue {net:,.2f}, derived columns are formulas"
+
+
 def check_sizes() -> str:
     big = [f"{p.relative_to(ROOT).as_posix()} {p.stat().st_size:,}" for p in tracked_files()
            if p.stat().st_size > MAX_TRACKED_BYTES]
@@ -289,6 +316,7 @@ CHECKS = [
     ("privacy scan", check_privacy),
     ("no large files", check_sizes),
     ("Power BI project matches the warehouse and measures.md", check_powerbi_project),
+    ("Excel workbook values equal the warehouse", check_excel_workbook),
 ]
 
 

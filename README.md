@@ -87,6 +87,7 @@ Single steps:
 | `python -m analytics.impact` | the retention-value estimate behind F8, step by step |
 | `python -m analytics.dashboard` | rebuild `docs/index.html` |
 | `python -m analytics.export_bi` | export the star schema to `bi/data/*.csv` |
+| `python -m analytics.export_excel` | write `bi/retail-sales-summary.xlsx`: monthly revenue with live formulas |
 | `python check.py` | release gate: tests, dbt, README numbers vs data, dashboard freshness, secret and privacy scans |
 
 ## Data model
@@ -215,7 +216,7 @@ cd dbt && dbt build --profiles-dir .
   revenue, revenue equals quantity x price, no orphan date / product / customer keys, no
   empty product descriptions, no non-positive cancelled quantities, no gaps in the
   calendar, no duplicate customer ids. Exit code 1 if any fails.
-- `tests/` - 32 pytest tests. Unit tests for every cleaning rule on a small synthetic
+- `tests/` - 35 pytest tests. Unit tests for every cleaning rule on a small synthetic
   frame, and warehouse tests. One test copies the schema, breaks the data on purpose and
   asserts that **every** quality check fails on it, so a check that silently always
   passes is caught.
@@ -243,6 +244,10 @@ To open: start the database (`docker compose up -d db`), open `bi/retail-sales.p
 the database credentials when asked (user `retail`, password `retail`, the local demo
 container), then *Refresh*. The server and database names are parameters (`PgServer`,
 `PgDatabase`). The project holds no data and no credentials.
+
+## Excel
+
+[`bi/retail-sales-summary.xlsx`](bi/retail-sales-summary.xlsx) (9 KB) is a monthly summary for people who do not open a database. Gross revenue, cancelled value and orders per month are values from the warehouse; net revenue, month on month and year on year change, the yearly table, the best month and a check cell against the warehouse total (`Summary!B3`, must read 0) are Excel formulas. It was recalculated in Excel: the check cell reads 0, and changing one month moves it away from 0. `check.py` compares its monthly values with the warehouse.
 
 What has been verified: every JSON file validates against Microsoft's published schemas, and
 the TMDL folder loads with Microsoft's own `TmdlSerializer`. What has not: the report has
