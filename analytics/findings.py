@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from . import queries
+from . import queries, stats
 from .db import connect
 
 SQL = {
@@ -59,6 +59,20 @@ def next_month_retention() -> tuple[float, str, str]:
     return float(rate), complete.index.min().strftime("%b %Y"), complete.index.max().strftime("%b %Y")
 
 
+def seasonal_retention() -> dict:
+    """Month-1 retention of customers first seen in Sep-Nov against those first seen in other
+    months, over the same complete cohorts as F4, tested with a two-proportion z-test."""
+    cohorts, _ = cohort_table()
+    sizes = next_month_retention_cohorts()
+    back = (cohorts[cohorts["months_since_first"] == 1].set_index("cohort")["active_customers"]
+            .reindex(sizes.index, fill_value=0))
+    season = sizes.index.month.isin([9, 10, 11])
+    result = stats.two_proportion_test(int(back[season].sum()), int(sizes[season].sum()),
+                                       int(back[~season].sum()), int(sizes[~season].sum()))
+    result.update(n_season=int(sizes[season].sum()), n_other=int(sizes[~season].sum()))
+    return result
+
+
 def product_name(description: str) -> str:
     return " ".join(description.split()).strip(" ,").title()
 
@@ -83,6 +97,10 @@ def facts() -> dict:
     f["first_cross"] = int((~pairs["same_line"].astype(bool)).idxmax())  # pairs before it are one collection
     f["top_pair"], f["cross_pair"] = pairs.iloc[0], pairs.iloc[f["first_cross"]]
     f["impact"] = impact.compute()
+    f["seasonal"] = seasonal_retention()
+    arm = lambda months: f["impact"].new_per_month * months / 2  # noqa: E731 - customers per arm, 50/50 split
+    f["mde_6m"] = stats.min_detectable_lift(f["retention"], arm(6))
+    f["mde_12m"] = stats.min_detectable_lift(f["retention"], arm(12))
     return f
 
 
@@ -91,7 +109,8 @@ def pair_name(row) -> str:
 
 
 def findings_from(f: dict) -> list:
-    i, top, cross = f["impact"], f["top_pair"], f["cross_pair"]
+    i, top, cross, s = f["impact"], f["top_pair"], f["cross_pair"], f["seasonal"]
+    p_text = "p < 0.001" if s["p"] < 0.001 else f"p = {s['p']:.3f}"
     return [
         f"F1 Concentration: the United Kingdom is {100 * f['uk_net'] / f['net']:.1f}% of net revenue "
         f"({f['uk_net']:,.0f} of {f['net']:,.0f} GBP).",
@@ -114,6 +133,12 @@ def findings_from(f: dict) -> list:
         f"{i.per_point_per_year:,.0f} GBP of net revenue a year (an estimate: {i.new_per_month:,.0f} new "
         f"customers a month; in the next 12 months a month-1 returner brings {i.returning_value:,.0f} GBP, "
         f"other new customers {i.other_value:,.0f} GBP).",
+        f"F9 Seasonal customers: {100 * s['rate1']:.1f}% of customers first seen in September-November buy "
+        f"again the next month, against {100 * s['rate2']:.1f}% of those first seen in other months "
+        f"(difference {100 * s['diff']:+.1f} pp, 95% interval {100 * s['low']:+.1f} to {100 * s['high']:+.1f} pp, "
+        f"{p_text}; {s['n_season']:,} and {s['n_other']:,} customers). "
+        + ("The difference is unlikely to be chance."
+           if s["p"] < 0.05 else "The difference is not distinguishable from chance at the 5% level."),
     ]
 
 
@@ -122,7 +147,10 @@ def recommendations_from(f: dict) -> list:
     return [
         f"1. **Win the second order.** Only {100 * f['retention']:.1f}% of new customers buy again the next "
         f"month (F4). Test a first-month follow-up offer on half of new customers; each +1 pp it adds is "
-        f"worth up to {i.per_point_per_year:,.0f} GBP a year (F8), which is the budget ceiling for the test.",
+        f"worth up to {i.per_point_per_year:,.0f} GBP a year (F8), which is the budget ceiling for the test. "
+        f"Size it first: at {i.new_per_month:,.0f} new customers a month, a 50/50 split can only detect a lift of "
+        f"{100 * f['mde_6m']:.1f} pp after 6 months ({100 * f['mde_12m']:.1f} pp after 12; 80% power, 5% "
+        f"significance), so a +1 pp effect would be invisible and the offer must aim higher.",
         f"2. **Confirm large orders before they are booked.** {100 * f['reversal_share']:.1f}% of cancelled "
         f"value is lines reversed the same day (F5), and the two largest cancelled orders alone are "
         f"{100 * f['top2_cancel_share']:.1f}% of it. A confirmation step for unusually large quantities "
