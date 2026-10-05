@@ -87,6 +87,7 @@ Single steps:
 | `python -m analytics.impact` | the retention-value estimate behind F8, step by step |
 | `python -m analytics.dashboard` | rebuild `docs/index.html` |
 | `python -m analytics.export_bi` | export the star schema to `bi/data/*.csv` |
+| `python bi/metabase/provision.py` | set up the local Metabase: database, 4 saved questions, 1 dashboard (needs `docker compose up -d --wait metabase`) |
 | `python -m analytics.export_excel` | write `bi/retail-sales-summary.xlsx`: monthly revenue with live formulas |
 | `python check.py` | release gate: tests, dbt, README numbers vs data, dashboard freshness, secret and privacy scans |
 
@@ -216,7 +217,7 @@ cd dbt && dbt build --profiles-dir .
   revenue, revenue equals quantity x price, no orphan date / product / customer keys, no
   empty product descriptions, no non-positive cancelled quantities, no gaps in the
   calendar, no duplicate customer ids. Exit code 1 if any fails.
-- `tests/` - 35 pytest tests. Unit tests for every cleaning rule on a small synthetic
+- `tests/` - 41 pytest tests. Unit tests for every cleaning rule on a small synthetic
   frame, and warehouse tests. One test copies the schema, breaks the data on purpose and
   asserts that **every** quality check fails on it, so a check that silently always
   passes is caught.
@@ -253,6 +254,10 @@ against the numbers in `bi/measures.md` yet.
 ## Excel
 
 [`bi/retail-sales-summary.xlsx`](bi/retail-sales-summary.xlsx) (9 KB) is a monthly summary for people who do not open a database. Gross revenue, cancelled value and orders per month are values from the warehouse; net revenue, month on month and year on year change, the yearly table, the best month and a check cell against the warehouse total (`Summary!B3`, must read 0) are Excel formulas. It was recalculated in Excel: the check cell reads 0, and changing one month moves it away from 0. `check.py` rebuilds the workbook from the warehouse and compares every cell. The file stores formulas without cached values: they compute when Excel (or LibreOffice) opens it, while a viewer that does not recalculate shows empty cells. 2009 holds one month (December).
+
+## Metabase
+
+A dashboard in Metabase (open source, pinned to `v0.63.19.1`) over the same warehouse, as a local demo: `docker compose up -d --wait metabase`, then `python bi/metabase/provision.py`, then open <http://127.0.0.1:3000/dashboard/2>. The script creates the admin from `.env.example`, connects the `retail` database, saves four SQL questions (net revenue, monthly net revenue, top 10 countries outside the UK, share of each first-purchase cohort that bought again) and lays them out on one dashboard; run twice, it updates instead of duplicating. The net revenue card reads 18,926,266.18, the same figure as `bi/measures.md`; a screenshot is in [`bi/metabase/dashboard.png`](bi/metabase/dashboard.png). Limits: it runs on your machine only, there is no hosted Metabase, and later cohorts had less time to return, so the right-hand bars fall off by construction.
 
 ## What broke
 

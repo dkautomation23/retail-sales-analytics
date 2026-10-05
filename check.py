@@ -36,7 +36,7 @@ KNOWN_FALSE_POSITIVES: dict[str, str] = {
 CYRILLIC = re.compile(r"[\u0400-\u04ff]")
 HOME_PATH = re.compile(r"[a-z]:[\\/]users[\\/]", re.IGNORECASE)
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
-ALLOWED_EMAIL = re.compile(r"@users\.noreply\.github\.com$")
+ALLOWED_EMAIL = re.compile(r"(@users\.noreply\.github\.com|@example\.com)$")
 # The privacy scanner reports in Russian: "CRITICAL n, IMPORTANT n".
 PRIVACY_TOTAL = re.compile(r"\u041a\u0420\u0418\u0422\u0418\u0427\u041d\u041e (\d+), \u0412\u0410\u0416\u041d\u041e (\d+)")
 
@@ -306,6 +306,26 @@ def check_excel_workbook() -> str:
     return f"{len(rows)} months, every cell of both sheets equals a fresh build, net revenue {net:,.2f}"
 
 
+def check_metabase_service() -> str:
+    """Metabase runs from docker-compose.yml: pinned image, local port only, waits for a healthy database."""
+    import yaml
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    service = (compose.get("services") or {}).get("metabase")
+    if not service:
+        raise Failed("docker-compose.yml has no metabase service")
+    image = str(service.get("image", ""))
+    name, _, tag = image.partition(":")
+    if name != "metabase/metabase" or not re.fullmatch(r"v\d+\.\d+\.\d+(\.\d+)?", tag):
+        raise Failed(f"image is {image!r}; expected metabase/metabase pinned to an exact version")
+    if "127.0.0.1:3000:3000" not in [str(p) for p in service.get("ports", [])]:
+        raise Failed("port must be published as 127.0.0.1:3000:3000 (local only)")
+    if (service.get("depends_on") or {}).get("db", {}).get("condition") != "service_healthy":
+        raise Failed("metabase must wait for db with condition: service_healthy")
+    if not (ROOT / "bi" / "metabase" / "dashboard.png").exists() or not (ROOT / "bi" / "metabase" / "provision.py").exists():
+        raise Failed("bi/metabase/provision.py or dashboard.png is missing")
+    return f"{image}, 127.0.0.1:3000, waits for a healthy db, provisioning script and screenshot present"
+
+
 def check_sizes() -> str:
     big = [f"{p.relative_to(ROOT).as_posix()} {p.stat().st_size:,}" for p in tracked_files()
            if p.stat().st_size > MAX_TRACKED_BYTES]
@@ -331,6 +351,7 @@ CHECKS = [
     ("no large files", check_sizes),
     ("Power BI project matches the warehouse and measures.md", check_powerbi_project),
     ("Excel workbook values equal the warehouse", check_excel_workbook),
+    ("Metabase service is pinned and local-only", check_metabase_service),
 ]
 
 
