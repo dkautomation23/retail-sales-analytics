@@ -1,0 +1,21 @@
+# Airflow for the retail DAG, an add-on to docker-compose.yml (it reuses the `db` service):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.airflow.yml run --rm airflow \
+#       bash -c "airflow db migrate > /dev/null && airflow dags test retail_etl 2026-10-01"
+#
+# One container, Airflow's built-in SQLite metadata, no scheduler or web server: a local
+# demo that runs the DAG once, not a deployment.
+services:
+  airflow:
+    build:
+      context: ./orchestration
+    environment:
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/project/orchestration/dags
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      RETAIL_DSN: postgresql://retail:retail@db:5432/retail
+      PYTHONPATH: /opt/airflow/project
+    volumes:
+      - .:/opt/airflow/project:ro
+    depends_on:
+      db:
+        condition: service_healthy

@@ -326,6 +326,34 @@ def check_metabase_service() -> str:
     return f"{image}, 127.0.0.1:3000, waits for a healthy db, provisioning script and screenshot present"
 
 
+def check_airflow_dag() -> str:
+    """The Airflow DAG is a plain file: three chained tasks, and an image pinned to an exact version."""
+    import ast
+
+    import yaml
+    dag_file = ROOT / "orchestration" / "dags" / "retail_etl.py"
+    compose_file = ROOT / "docker-compose.airflow.yml"
+    if not dag_file.exists() or not compose_file.exists():
+        raise Failed("orchestration/dags/retail_etl.py or docker-compose.airflow.yml is missing")
+    tree = ast.parse(dag_file.read_text(encoding="utf-8"))
+    task_ids = [kw.value.value for node in ast.walk(tree) if isinstance(node, ast.Call)
+                for kw in node.keywords if kw.arg == "task_id" and isinstance(kw.value, ast.Constant)]
+    dag_ids = [kw.value.value for node in ast.walk(tree) if isinstance(node, ast.Call)
+               for kw in node.keywords if kw.arg == "dag_id" and isinstance(kw.value, ast.Constant)]
+    arrows = [n for n in ast.walk(tree) if isinstance(n, ast.BinOp) and isinstance(n.op, ast.RShift)]
+    if dag_ids != ["retail_etl"] or len(task_ids) != 3 or len(set(task_ids)) != 3 or len(arrows) < 2:
+        raise Failed(f"expected dag_id retail_etl with 3 distinct chained tasks, got {dag_ids}, {task_ids}, {len(arrows)} arrows")
+    service = (yaml.safe_load(compose_file.read_text(encoding="utf-8")).get("services") or {}).get("airflow")
+    build = (service or {}).get("build")
+    if not service or not build:
+        raise Failed("docker-compose.airflow.yml has no airflow service built from orchestration/Dockerfile")
+    dockerfile = (ROOT / "orchestration" / "Dockerfile").read_text(encoding="utf-8")
+    base = re.search(r"^FROM apache/airflow:(\S+)", dockerfile, re.M)
+    if not base or not re.fullmatch(r"\d+\.\d+\.\d+-python\d+\.\d+", base.group(1)):
+        raise Failed("orchestration/Dockerfile must start FROM apache/airflow:<exact version>-pythonX.Y")
+    return f"dag retail_etl, tasks {task_ids}, image apache/airflow:{base.group(1)}"
+
+
 def check_sizes() -> str:
     big = [f"{p.relative_to(ROOT).as_posix()} {p.stat().st_size:,}" for p in tracked_files()
            if p.stat().st_size > MAX_TRACKED_BYTES]
@@ -352,6 +380,7 @@ CHECKS = [
     ("Power BI project matches the warehouse and measures.md", check_powerbi_project),
     ("Excel workbook values equal the warehouse", check_excel_workbook),
     ("Metabase service is pinned and local-only", check_metabase_service),
+    ("Airflow DAG has three chained tasks, image pinned", check_airflow_dag),
 ]
 
 

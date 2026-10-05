@@ -87,6 +87,7 @@ Single steps:
 | `python -m analytics.impact` | the retention-value estimate behind F8, step by step |
 | `python -m analytics.dashboard` | rebuild `docs/index.html` |
 | `python -m analytics.export_bi` | export the star schema to `bi/data/*.csv` |
+| `docker compose -f docker-compose.yml -f docker-compose.airflow.yml run --rm airflow bash -c "airflow db migrate > /dev/null && airflow dags test retail_etl 2026-10-01"` | run the Airflow DAG once (loaded check, quality checks, findings) |
 | `python bi/metabase/provision.py` | set up the local Metabase: database, 4 saved questions, 1 dashboard (needs `docker compose up -d --wait metabase`) |
 | `python -m analytics.export_excel` | write `bi/retail-sales-summary.xlsx`: monthly revenue with live formulas |
 | `python check.py` | release gate: tests, dbt, README numbers vs data, dashboard freshness, secret and privacy scans |
@@ -258,6 +259,10 @@ against the numbers in `bi/measures.md` yet.
 ## Metabase
 
 A dashboard in Metabase (open source, pinned to `v0.63.19.1`) over the same warehouse, as a local demo: `docker compose up -d --wait metabase`, then `python bi/metabase/provision.py`, then open <http://127.0.0.1:3000/dashboard/2>. The script creates the admin from `.env.example`, connects the `retail` database, saves four SQL questions (net revenue, monthly net revenue, top 10 countries outside the UK, share of each first-purchase cohort that bought again) and lays them out on one dashboard; run twice, it updates instead of duplicating. The net revenue card reads 18,926,266.18, the same figure as `bi/measures.md`; a screenshot is in [`bi/metabase/dashboard.png`](bi/metabase/dashboard.png). Limits: it runs on your machine only, there is no hosted Metabase, and later cohorts had less time to return, so the right-hand bars fall off by construction.
+
+## Orchestration
+
+[`orchestration/dags/retail_etl.py`](orchestration/dags/retail_etl.py) is an Airflow DAG with three chained tasks: the warehouse is loaded, `analytics.quality` passes, `analytics.findings` prints. It runs in a pinned Airflow image (`3.3.2`) through `docker-compose.airflow.yml`; the command is in the table above. It was run once with `airflow dags test` and finished with exit code 0, all three tasks `success`; with a wrong database password the same command exits 1. Limits: a one-shot local run, not a deployment (no scheduler, no web server, SQLite metadata), and the load step (`python -m analytics.etl`) is not a task because the source workbook is not in the repository.
 
 ## What broke
 
