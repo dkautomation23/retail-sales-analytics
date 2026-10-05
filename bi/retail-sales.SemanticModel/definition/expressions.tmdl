@@ -1,4 +1,4 @@
-expression PgServer = "localhost:5433" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+expression PgServer = "127.0.0.1:5433" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
 	lineageTag: 76b95617-85b8-5ffa-8733-64b6d349953e
 
 expression PgDatabase = "retail" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]

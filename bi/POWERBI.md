@@ -14,7 +14,7 @@ same model built by hand.
 Option A - straight from PostgreSQL (database running via `docker compose up -d db`):
 
 1. *Get data* -> *PostgreSQL database*.
-2. Server `localhost:5433`, database `retail`, mode *Import*.
+2. Server `127.0.0.1:5433`, database `retail`, mode *Import*.
 3. Credentials: *Database*, user `retail`, password `retail` (local demo container only).
 4. Select `public.dim_date`, `dim_country`, `dim_customer`, `dim_product`,
    `fact_sales`, `fact_returns` -> *Load*.

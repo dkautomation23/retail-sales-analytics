@@ -4,7 +4,8 @@
     python bi/metabase/provision.py
 
 Safe to run twice: whatever already exists (admin, database, a question or the dashboard
-with the same name) is reused and brought up to date, not duplicated. Standard library only. The admin login comes
+with the same name) is reused and brought up to date, not duplicated. If two objects share a name,
+or a database with our name points elsewhere, it stops and says so. Standard library only. The admin login comes
 from MB_ADMIN_EMAIL / MB_ADMIN_PASSWORD, falling back to the demo values in .env.example.
 The warehouse is reached from inside the compose network as host "db", port 5432.
 """
@@ -71,7 +72,7 @@ QUESTIONS = [
      "settings": {"graph.dimensions": ["month"], "graph.metrics": ["net_revenue"]}},
     {"name": "Top 10 countries outside the UK by gross revenue", "display": "bar", "sql": TOP_COUNTRIES,
      "size": (12, 7), "settings": {"graph.dimensions": ["country"], "graph.metrics": ["gross_revenue"]}},
-    {"name": "Bought again, % by first-purchase month",
+    {"name": "Customers active in more than one month, % by first-purchase month",
      "display": "bar", "sql": REPEAT_BY_COHORT, "size": (12, 7),
      "settings": {"graph.dimensions": ["cohort"], "graph.metrics": ["bought_again_pct"]}},
 ]
@@ -90,6 +91,16 @@ def credentials(env_file: Path = ROOT / ".env.example") -> tuple[str, str]:
     if not email or not password:
         raise SystemExit("set MB_ADMIN_EMAIL and MB_ADMIN_PASSWORD (demo values are in .env.example)")
     return email, password
+
+
+def by_name(items: list, kind: str) -> dict:
+    """name -> id; two objects with one name make the run ambiguous, so stop instead of guessing."""
+    found: dict = {}
+    for item in items:
+        if item["name"] in found:
+            raise SystemExit(f"two Metabase {kind}s are named {item['name']!r}; rename or archive one and rerun")
+        found[item["name"]] = item["id"]
+    return found
 
 
 def card_payload(question: dict, database_id: int) -> dict:
@@ -141,7 +152,8 @@ class Metabase:
                 if urllib.request.urlopen(self.base + "/api/health", timeout=5).status == 200:
                     return
             except (urllib.error.URLError, OSError):
-                time.sleep(3)
+                pass
+            time.sleep(3)
         raise SystemExit(f"Metabase did not answer at {self.base}; run: docker compose up -d --wait metabase")
 
     def sign_in(self, email: str, password: str) -> None:
@@ -159,6 +171,10 @@ class Metabase:
         existing = self.call("GET", "/api/database")
         for item in existing["data"] if isinstance(existing, dict) else existing:
             if item["name"] == DB_NAME:
+                details = item.get("details") or {}
+                if item.get("engine") != "postgres" or details.get("dbname") != "retail":
+                    raise SystemExit(f"a Metabase database named {DB_NAME!r} exists but is not the retail Postgres; "
+                                     "rename it and rerun")
                 return item["id"]
         created = self.call("POST", "/api/database", {
             "name": DB_NAME, "engine": "postgres",
@@ -169,15 +185,19 @@ class Metabase:
         return created["id"]
 
     def cards(self, database_id: int) -> dict:
-        have = {c["name"]: c["id"] for c in self.call("GET", "/api/card")}
+        have = by_name(self.call("GET", "/api/card"), "card")
         ids = {}
         for question in QUESTIONS:
-            ids[question["name"]] = have.get(question["name"]) or \
-                self.call("POST", "/api/card", card_payload(question, database_id))["id"]
+            payload = card_payload(question, database_id)
+            if question["name"] in have:
+                ids[question["name"]] = have[question["name"]]
+                self.call("PUT", f"/api/card/{have[question['name']]}", payload)
+            else:
+                ids[question["name"]] = self.call("POST", "/api/card", payload)["id"]
         return ids
 
     def dashboard(self, card_ids: dict) -> int:
-        have = {d["name"]: d["id"] for d in self.call("GET", "/api/dashboard")}
+        have = by_name(self.call("GET", "/api/dashboard"), "dashboard")
         dashboard_id = have.get(DASHBOARD) or self.call("POST", "/api/dashboard", {"name": DASHBOARD})["id"]
         self.call("PUT", f"/api/dashboard/{dashboard_id}", {"dashcards": dashcards(card_ids)})
         return dashboard_id

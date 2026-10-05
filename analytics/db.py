@@ -3,7 +3,7 @@ import os
 
 import psycopg
 
-DSN = os.environ.get("RETAIL_DSN", "postgresql://retail:retail@localhost:5433/retail")
+DSN = os.environ.get("RETAIL_DSN", "postgresql://retail:retail@127.0.0.1:5433/retail")
 
 
 def connect() -> psycopg.Connection:

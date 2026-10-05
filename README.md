@@ -218,7 +218,7 @@ cd dbt && dbt build --profiles-dir .
   revenue, revenue equals quantity x price, no orphan date / product / customer keys, no
   empty product descriptions, no non-positive cancelled quantities, no gaps in the
   calendar, no duplicate customer ids. Exit code 1 if any fails.
-- `tests/` - 41 pytest tests. Unit tests for every cleaning rule on a small synthetic
+- `tests/` - 46 pytest tests. Unit tests for every cleaning rule on a small synthetic
   frame, and warehouse tests. One test copies the schema, breaks the data on purpose and
   asserts that **every** quality check fails on it, so a check that silently always
   passes is caught.
@@ -258,7 +258,7 @@ against the numbers in `bi/measures.md` yet.
 
 ## Metabase
 
-A dashboard in Metabase (open source, pinned to `v0.63.19.1`) over the same warehouse, as a local demo: `docker compose up -d --wait metabase`, then `python bi/metabase/provision.py`, then open <http://127.0.0.1:3000/dashboard/2>. The script creates the admin from `.env.example`, connects the `retail` database, saves four SQL questions (net revenue, monthly net revenue, top 10 countries outside the UK, share of each first-purchase cohort that bought again) and lays them out on one dashboard; run twice, it updates instead of duplicating. The net revenue card reads 18,926,266.18, the same figure as `bi/measures.md`; a screenshot is in [`bi/metabase/dashboard.png`](bi/metabase/dashboard.png). Limits: it runs on your machine only, there is no hosted Metabase, and later cohorts had less time to return, so the right-hand bars fall off by construction.
+A dashboard in Metabase (open source, pinned to `v0.63.19.1`) over the same warehouse, as a local demo: `docker compose up -d --wait metabase`, then `python bi/metabase/provision.py`, then open the dashboard link the script prints. The script creates the admin from `.env.example`, connects the `retail` database, saves four SQL questions (net revenue, monthly net revenue, top 10 countries outside the UK, share of each first-purchase cohort active in more than one month) and lays them out on one dashboard; run twice, it updates instead of duplicating (on an instance you set up by hand, export `MB_ADMIN_EMAIL` and `MB_ADMIN_PASSWORD` for that admin; the demo login in `.env.example` is for the throwaway local container only). The net revenue card reads 18,926,266.18, the same figure as `bi/measures.md`; a screenshot is in [`bi/metabase/dashboard.png`](bi/metabase/dashboard.png). Limits: it runs on your machine only, there is no hosted Metabase, and later cohorts had less time to return, so the right-hand bars fall off by construction.
 
 ## Orchestration
 

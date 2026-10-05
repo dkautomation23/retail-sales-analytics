@@ -62,3 +62,61 @@ def test_missing_credentials_raise_instead_of_guessing(tmp_path, monkeypatch):
     monkeypatch.delenv("MB_ADMIN_PASSWORD", raising=False)
     with pytest.raises(SystemExit):
         provision.credentials(tmp_path / "missing.env")
+
+
+class FakeMetabase(provision.Metabase):
+    """Records calls instead of sending them; GET /api/card returns what a first run created."""
+
+    def __init__(self, existing):
+        super().__init__("http://unused")
+        self.existing, self.calls = existing, []
+
+    def call(self, method, path, body=None):
+        self.calls.append((method, path))
+        if (method, path) == ("GET", "/api/card"):
+            return [{"name": n, "id": i} for n, i in self.existing.items()]
+        return {"id": 99}
+
+
+def test_first_run_creates_each_card_once():
+    client = FakeMetabase({})
+    ids = client.cards(database_id=2)
+    assert len(ids) == len(provision.QUESTIONS)
+    assert [c for c in client.calls if c[0] == "POST"] == [("POST", "/api/card")] * len(provision.QUESTIONS)
+    assert not [c for c in client.calls if c[0] == "PUT"]
+
+
+def test_second_run_updates_existing_cards_and_creates_none():
+    existing = {q["name"]: 10 + i for i, q in enumerate(provision.QUESTIONS)}
+    client = FakeMetabase(existing)
+    assert client.cards(database_id=2) == existing
+    assert not [c for c in client.calls if c[0] == "POST"]
+    assert sorted(c for c in client.calls if c[0] == "PUT") == sorted(("PUT", f"/api/card/{i}") for i in existing.values())
+
+
+def test_two_cards_with_one_name_stop_the_run_instead_of_guessing():
+    class Twin(FakeMetabase):
+        def call(self, method, path, body=None):
+            if (method, path) == ("GET", "/api/card"):
+                name = provision.QUESTIONS[0]["name"]
+                return [{"name": name, "id": 1}, {"name": name, "id": 2}]
+            return super().call(method, path, body)
+    with pytest.raises(SystemExit):
+        Twin({}).cards(database_id=2)
+
+
+def test_a_database_with_our_name_but_other_settings_stops_the_run():
+    class Imposter(FakeMetabase):
+        def call(self, method, path, body=None):
+            if (method, path) == ("GET", "/api/database"):
+                return {"data": [{"name": provision.DB_NAME, "id": 5, "engine": "mysql", "details": {"dbname": "other"}}]}
+            return super().call(method, path, body)
+    with pytest.raises(SystemExit):
+        Imposter({}).database()
+
+
+def test_the_cohort_question_does_not_claim_more_than_the_sql_counts():
+    """The SQL counts months with a purchase, so the title must not say 'bought again' (two orders in one month are one month)."""
+    cohort = [q for q in provision.QUESTIONS if "cohort" in q["sql"].lower() or "first_month" in q["sql"]][0]
+    assert "again" not in cohort["name"].lower()
+    assert "month" in cohort["name"].lower()
