@@ -119,4 +119,5 @@ def test_the_cohort_question_does_not_claim_more_than_the_sql_counts():
     """The SQL counts months with a purchase, so the title must not say 'bought again' (two orders in one month are one month)."""
     cohort = [q for q in provision.QUESTIONS if "cohort" in q["sql"].lower() or "first_month" in q["sql"]][0]
     assert "again" not in cohort["name"].lower()
+    assert not any("again" in m for m in cohort["settings"]["graph.metrics"]), "the axis label would still say 'again'"
     assert "month" in cohort["name"].lower()

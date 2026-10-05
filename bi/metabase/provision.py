@@ -57,7 +57,7 @@ customers AS (
 )
 SELECT first_month AS cohort,
        count(*) AS customers,
-       round(100.0 * count(*) FILTER (WHERE active_months > 1) / count(*), 1) AS bought_again_pct
+       round(100.0 * count(*) FILTER (WHERE active_months > 1) / count(*), 1) AS multi_month_pct
 FROM customers
 WHERE first_month > (SELECT min(month_start) FROM dim_date)
 GROUP BY 1
@@ -74,7 +74,7 @@ QUESTIONS = [
      "size": (12, 7), "settings": {"graph.dimensions": ["country"], "graph.metrics": ["gross_revenue"]}},
     {"name": "Customers active in more than one month, % by first-purchase month",
      "display": "bar", "sql": REPEAT_BY_COHORT, "size": (12, 7),
-     "settings": {"graph.dimensions": ["cohort"], "graph.metrics": ["bought_again_pct"]}},
+     "settings": {"graph.dimensions": ["cohort"], "graph.metrics": ["multi_month_pct"]}},
 ]
 
 

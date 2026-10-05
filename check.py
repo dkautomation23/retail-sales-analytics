@@ -36,7 +36,7 @@ KNOWN_FALSE_POSITIVES: dict[str, str] = {
 CYRILLIC = re.compile(r"[\u0400-\u04ff]")
 HOME_PATH = re.compile(r"[a-z]:[\\/]users[\\/]", re.IGNORECASE)
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
-ALLOWED_EMAIL = re.compile(r"(@users\.noreply\.github\.com|@example\.com|@127\.0\.0\.1)$")
+ALLOWED_EMAIL = re.compile(r"(@users\.noreply\.github\.com|@example\.com|^retail@127\.0\.0\.1)$")
 # The privacy scanner reports in Russian: "CRITICAL n, IMPORTANT n".
 PRIVACY_TOTAL = re.compile(r"\u041a\u0420\u0418\u0422\u0418\u0427\u041d\u041e (\d+), \u0412\u0410\u0416\u041d\u041e (\d+)")
 
